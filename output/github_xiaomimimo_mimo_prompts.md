@@ -1,0 +1,11 @@
+# Coding Prompts for GitHub Repo: https://github.com/XiaomiMiMo/MiMo
+(Owner: XiaomiMiMo, Repo: MiMo)
+(Generated: 2025-05-11T16:36:21.210Z)
+
+1. Understand the project's core purpose: MiMo-7B is a series of language models specifically designed for reasoning tasks, focusing on both pre-training and post-training strategies to enhance mathematical and code reasoning capabilities. It includes base, SFT, and RL-trained models, achieving performance comparable to larger models like OpenAI's o1-mini.
+2. Identify and list the core features: Multiple-Token Prediction (MTP) for enhanced performance and faster inference; Three-stage data mixture strategy for pre-training; Rule-based accuracy rewards and test difficulty driven code rewards for RL training; Seamless Rollout Engine for accelerated RL training and validation; Support for speculative decoding with high acceptance rates.
+3. Analyze the technology stack: PyTorch; HuggingFace Transformers; vLLM (forked and customized for MTP support); SGLang for inference; ModelScope for model hosting.
+4. Develop a build strategy for a similar tool, considering these points: Focus on high-quality, reasoning-dense pre-training data with multi-dimensional filtering; Implement a robust RL training pipeline with rule-based rewards and difficulty-aware scoring; Optimize inference with speculative decoding techniques like MTP; Develop efficient rollout and reward computation systems to minimize GPU idle time; Leverage existing frameworks like vLLM and HuggingFace for model deployment and scaling.
+5. Brainstorm potential improvements or alternative features based on: Expand support for more inference engines beyond vLLM and SGLang; Include more diverse benchmarks for evaluation; Provide detailed documentation on the data preprocessing pipeline; Add examples for fine-tuning on custom datasets; Enhance model interpretability for reasoning tasks.
+6. Based on the above, draft an initial plan or a set of user stories for building a similar or improved version of this tool.
+7. What are the key challenges or risks in developing such a tool?

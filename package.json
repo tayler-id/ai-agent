@@ -11,8 +11,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "youtube-transcript-plus": "^1.0.4",
     "@modelcontextprotocol/sdk": "^1.11.0",
-    "node-fetch": "^2.7.0"
+    "glob": "^11.0.2",
+    "node-fetch": "^2.7.0",
+    "youtube-transcript-plus": "^1.0.4"
   }
 }

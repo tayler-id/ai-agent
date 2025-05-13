@@ -1,0 +1,10 @@
+# Coding Prompts for Local Project: D:\Dev\ai-agent
+(Generated: 2025-05-11T18:28:54.669Z)
+
+1. Understand the project's core purpose: The AI Agent is a Node.js tool that analyzes YouTube video transcripts and GitHub repository content using the DeepSeek LLM API to generate coding prompts and provide interactive follow-up Q&A capabilities.
+2. Identify and list the core features: YouTube transcript retrieval with 3-step fallback strategy; GitHub repository content analysis; DeepSeek LLM API integration for content analysis; Interactive CLI for follow-up questions; Markdown output for generated prompts; Support for local project directories.
+3. Analyze the technology stack: Node.js (v20.11.1); youtube-transcript-plus package for YouTube transcripts; @modelcontextprotocol/sdk for MCP server integration; node-fetch for API calls; DeepSeek LLM API (OpenAI-compatible).
+4. Develop a build strategy for a similar tool, considering these points: Start with Node.js environment setup (v20+); Implement core functionality in modular components (YouTube, GitHub, LLM integration); Use environment variables for API keys and configuration; Implement robust error handling for network operations; Add interactive CLI interface with readline; Implement output generation in Markdown format; Consider token limits when processing large content.
+5. Brainstorm potential improvements or alternative features based on: Add persistent conversation history; Support additional LLM providers (OpenAI, Groq, Together, etc.); Implement proper error handling for API rate limits; Add tests for core functionality; Improve GitHub content analysis with better file selection heuristics; Add configuration options for prompt engineering; Implement proper logging system.
+6. Based on the above, draft an initial plan or a set of user stories for building a similar or improved version of this tool.
+7. What are the key challenges or risks in developing such a tool?

@@ -30,8 +30,37 @@ This project is an AI agent built in a Node.js environment, fully aligned with M
 
 - Node.js 20.11.1 (`nvm use` recommended)
 - `node-fetch` installed (already included in package.json)
-- Internet access for fetching YouTube transcripts and calling the LLM API
-- DeepSeek API key (set as `DEEPSEEK_API_KEY` environment variable, or edit `src/llm.js`)
+- `git` command-line tool installed and in your system's PATH (for GitHub repository analysis).
+- Internet access for fetching YouTube transcripts, cloning GitHub repositories, and calling the LLM API.
+- **API Keys:**
+  - **DeepSeek API Key:** Required for LLM analysis.
+  - **GitHub Personal Access Token (PAT):** Optional, but needed for accessing private repositories or to avoid rate limits on public repositories.
+- These keys can be set as environment variables (`DEEPSEEK_API_KEY`, `GITHUB_PAT`) or in the `config.json` file. Environment variables will override `config.json` values.
+
+## Configuration
+
+The agent can be configured using a `config.json` file in the project root (`ai-agent/config.json`). If this file is not present, default settings and environment variables will be used. An example configuration file (`config.json.example`) is provided.
+
+**`config.json` Settings:**
+
+-   `deepseekApiKey` (string): Your DeepSeek API key. (Overrides `DEEPSEEK_API_KEY` env var if env var is not set).
+-   `githubPat` (string): Your GitHub Personal Access Token. (Overrides `GITHUB_PAT` env var if env var is not set).
+-   `llmModelYouTube` (string): The LLM model to use for YouTube transcript analysis (e.g., "deepseek-chat").
+-   `llmModelRepo` (string): The LLM model for GitHub repository and local project analysis.
+-   `llmModelFollowUp` (string): The LLM model for follow-up questions.
+-   `maxTokensYouTube` (number): Max tokens for YouTube analysis LLM calls.
+-   `maxTokensRepo` (number): Max tokens for repository/local project analysis LLM calls.
+-   `maxTokensFollowUp` (number): Max tokens for follow-up LLM calls.
+-   `temperatureYouTube` (number): Temperature setting for YouTube analysis (0.0 - 1.0).
+-   `temperatureRepo` (number): Temperature for repository/local project analysis.
+-   `temperatureFollowUp` (number): Temperature for follow-up questions.
+-   `outputDir` (string): Directory where generated blueprint files are saved (e.g., "output").
+-   `tempClonesBaseDir` (string): Base directory for temporarily cloning GitHub repositories (e.g., "temp-clones").
+-   `maxTotalContentSize` (number): Maximum total size (in bytes) of concatenated file content to send to the LLM for repository/local analysis.
+-   `maxSourceFilesToScan` (number): Maximum number of source files to consider for inclusion in repository/local analysis (after READMEs, memory bank, and package files).
+-   `maxSourceFileSize` (number): Maximum size (in bytes) for an individual source file to be included.
+
+Environment variables `DEEPSEEK_API_KEY` and `GITHUB_PAT` will always take precedence if set.
 
 ## Usage
 
@@ -49,11 +78,6 @@ This project is an AI agent built in a Node.js environment, fully aligned with M
    - Generate a set of prompts for a coding agent based on the video content
    - Save the prompts to `prompts.md`
    - Enter an interactive mode where you can ask follow-up questions or analyze new videos
-
-## Configuration
-
-- To use a different LLM provider, update the endpoint and API key in `src/llm.js`.
-- The transcript fallback logic is in `src/youtube.js`.
 
 ## Roadmap
 

@@ -1,0 +1,19 @@
+# AI Agent Project Rules
+
+## Core Dependencies & Setup
+-   **`git` CLI:** This agent's GitHub analysis feature relies on the `git` command-line tool being installed and accessible in the system's PATH. Cloning will fail otherwise.
+-   **`DEEPSEEK_API_KEY`:** This environment variable must be set with a valid DeepSeek API key for LLM analysis to function.
+    -   In PowerShell for a session: `$env:DEEPSEEK_API_KEY = "YOUR_KEY_HERE"`
+-   **Node.js Version:** Adhere to the version specified in `.nvmrc`. Use `nvm use` (and specify the version explicitly in chained PowerShell commands, e.g., `nvm use 20.11.1; npm install`).
+-   **Temporary Files:** The agent creates temporary directories under `ai-agent/temp-clones/` for cloned repositories. These should be automatically cleaned up by `github.js -> cleanupRepo()`. Monitor this if issues arise.
+
+## Development & Testing
+-   **Modular Structure:** Maintain the modular design (`agent.js`, `github.js`, `youtube.js`, `llm.js`, `promptGenerator.js`).
+-   **Error Handling:** Ensure robust error handling for external processes (`git clone`), API calls, and file system operations. Provide clear error messages.
+-   **Content Limits:** Be mindful of `MAX_FILE_SIZE` and `MAX_TOTAL_CONTENT_SIZE` in `github.js` when testing with large repositories to manage LLM token usage and API costs.
+-   **Output:** Generated analysis and prompts are saved to `prompts.md`.
+
+## Cline's Interaction
+-   Cline can execute the command to *start* the agent (e.g., `node src/agent.js`).
+-   Cline **cannot** interact with the agent's subsequent CLI prompts (e.g., typing in a URL when the agent asks). The user must perform these interactions.
+-   Provide console output to Cline for debugging if issues occur during user-led testing.
