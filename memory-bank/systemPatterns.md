@@ -28,7 +28,7 @@ graph TD
     end
 
     subgraph LLMInteraction
-        LLMMod[src/llm.js: DeepSeek API Interaction]
+        LLMMod[src/llm.js: DeepSeek/OpenAI API Interaction]
         PromptGen[src/promptGenerator.js: Blueprint Formatting]
     end
 
@@ -43,8 +43,9 @@ graph TD
     end
     
     subgraph ExternalServices
-        DeepSeek[DeepSeek LLM API]
-        OpenAI[OpenAI Embedding API]
+        DeepSeek[DeepSeek LLM API (Chat)]
+        OpenAI_Chat[OpenAI LLM API (Chat)]
+        OpenAI_Embed[OpenAI Embedding API]
         GitHub[GitHub.com]
         YouTube[YouTube Platform]
         MCP[MCP Server (Optional)]
@@ -68,6 +69,7 @@ graph TD
     
     LLMMod -- RawBlueprint --> PromptGen;
     LLMMod -- InteractsWith --> DeepSeek;
+    LLMMod -- InteractsWith --> OpenAI_Chat;
     
     PromptGen -- FormattedOutput --> Agent;
     Agent -- SavesOutput --> OutputDir[output/blueprints.md];
@@ -104,8 +106,13 @@ graph TD
     *   **Local Path Processing (in `src/agent.js`):** Handles local directory inputs, applying similar content extraction logic as `github.js`, including `.agentinclude` support.
 
 3.  **LLM Interaction & Prompting:**
-    *   **LLM Module (`src/llm.js`):** Manages interactions with the DeepSeek API. Constructs detailed prompts to request "Improvement and Re-implementation Blueprints" in JSON format. Handles API responses and errors, including parsing JSON from potentially messy LLM output. Supports follow-up questions.
-    *   **Prompt Generation (`src/promptGenerator.js`):** Takes the structured JSON blueprint from `llm.js` and formats it into detailed Markdown files and concise console prompts.
+    *   **LLM Module (`src/llm.js`):** Manages interactions with LLM APIs (DeepSeek and OpenAI).
+        -   Selects the provider (DeepSeek or OpenAI) based on the model name prefix (e.g., "gpt-") specified in the configuration for the current task (repo, YouTube, follow-up).
+        -   Constructs detailed prompts to request "Improvement and Re-implementation Blueprints" in JSON format.
+        -   Handles API responses and errors, including parsing JSON from potentially messy LLM output.
+        -   Supports follow-up questions, dispatching to the configured LLM provider.
+        -   Includes DNS lookup before fetch calls for debugging.
+    *   **Prompt Generation (`src/promptGenerator.js`):** Takes the structured JSON blueprint from `llm.js` (regardless of which LLM produced it) and formats it into detailed Markdown files and concise console prompts.
 
 4.  **Memory Systems:**
     *   **Simple Key-Value Memory (`src/memory.js`):** Basic file-based storage (`memory-store.json`) for associating summaries with URLs/paths.

@@ -16,13 +16,18 @@
 
 Based on the comprehensive codebase audit and the updated understanding of the project's capabilities and architecture, the following are the immediate priorities:
 
-1.  **Finalize Memory Bank Update & Documentation:**
-    *   Update `memory-bank/progress.md` to accurately reflect completed features and pending work based on the audit.
-    *   Update the Knowledge Graph if significant architectural or technological changes were identified that are not yet represented.
-    *   Provide a consolidated, updated project overview to the user.
-    *   Commit and push all updated Memory Bank documentation to the GitHub repository.
+1.  **Investigate and Fix Local Path Analysis Bug (HIGHEST PRIORITY):**
+    *   **Issue:** User reported that local path analysis is not working.
+    *   **Objective:** Identify the root cause of the failure in local path analysis and implement a robust fix.
+    *   **Debugging Strategy (Initial):**
+        *   Add detailed logging within `src/agent.js` in the section handling local paths (where `isLocalPath` is true). Log the detected path, parameters passed to `getRepoContentForAnalysis`, and the returned content or error.
+        *   Add detailed logging within `src/github.js` inside `getRepoContentForAnalysis`, specifically for conditions where it's processing a local directory. Log file scanning, content extraction attempts, and errors.
+    *   **Resolution:** Implement necessary code changes in `src/agent.js` and/or `src/github.js`.
+    *   **Testing:** Test with various local path scenarios after the fix.
+    *   **Documentation:** Update Memory Bank if the fix alters functionality.
+    *   **Version Control:** Commit and push the fix.
 
-2.  **Memory Visualization UI - Backend Integration:**
+2.  **Memory Visualization UI - Backend Integration (Following Local Path Fix):**
     *   **Critical:** The current Express API backend for the Memory Visualization UI (`src/agent.js`) uses in-memory mock data. This needs to be refactored to connect to and serve data from the actual persistent memory systems:
         *   `src/hierarchicalMemory.js` (for session, project, global layers).
         *   `vector-memory/lanceVectorMemory.js` (for semantic search results, potentially listing entries).

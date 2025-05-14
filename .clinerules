@@ -11,13 +11,22 @@
 - **Self-Improving Reflection:** Before using `attempt_completion` for non-trivial tasks or tasks involving user feedback, Cline MUST offer to reflect on the interaction and suggest improvements to these `.clinerules` if the user agrees.
 
 ### 3. Preferred MCP Tool Usage
-- **Task Manager:** MUST be used for every new multi-step task to plan and track progress (`github.com/pashpashpash/mcp-taskmanager`).
-    -   This includes strictly following the `mark_task_done` -> `user_approval` -> `get_next_task` cycle.
+- **Task Manager Workflow:**
+    -   MUST be used for every new multi-step task to plan and track progress (`github.com/pashpashpash/mcp-taskmanager`).
+    -   Strictly follow the `mark_task_done` -> `user_approval` -> `get_next_task` cycle for each task defined in the `request_planning` stage.
+    -   **Exception for Chained Sub-Operations:** If a single *planned task* from the Task Manager inherently involves a tight sequence of multiple, low-risk, internal sub-operations that *Cline* executes (e.g., a sequence of `git add` then `git commit` performed via `execute_command` as part of a larger "commit feature X" task), Cline MAY perform these chained sub-operations and then mark the single parent task as done, seeking approval once for that parent task. This is to avoid excessive approval steps for trivial, tightly coupled internal actions. Cline MUST still clearly state all sub-operations performed when marking the parent task done. This exception does NOT apply if any sub-operation involves writing/replacing files or has a higher risk.
 - **Sequential Thinking:** SHOULD be used for complex problem-solving or when a detailed thought process needs to be recorded (`github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking`).
 - **Knowledge Graph (Memory MCP):** SHOULD be used to store and retrieve structured knowledge about the project, entities, and relationships (`github.com/modelcontextprotocol/servers/tree/main/src/memory`).
 - **Context7:** SHOULD be used for fetching up-to-date library documentation (`github.com/upstash/context7-mcp`). Resolve library ID first.
 - **Exa Search:** SHOULD be used for initial research or to back up decision-making before generating task lists for the Task Manager (`github.com/exa-labs/exa-mcp-server`).
 - **File System Tools:** ALWAYS use Cline's built-in file system tools (`read_file`, `write_to_file`, `replace_in_file`, `list_files`) for interacting with files, rather than shell commands like `cat` or `ls` unless absolutely necessary for a specific unsupported operation.
+
+### MCP Tool Reliability & Fallbacks
+-   While preferred MCP tools should be attempted first, if an MCP tool fails consistently (e.g., 2 consecutive attempts with generic errors) for a common operation (like `git status`, `git add`), Cline SHOULD:
+    1.  Note the MCP tool failure.
+    2.  Attempt a direct, equivalent `execute_command` if available and safe (e.g., `git status`, `git add`, `git commit`).
+    3.  If `execute_command` is not suitable or also fails, then use `ask_followup_question` to request the user to perform the action or provide information.
+    4.  After the task, consider noting the unreliable MCP server in `activeContext.md` if it impacts workflow significantly.
 
 ---
 

@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Load .env file contents into process.env
 import { fileURLToPath } from 'url';
 import readline from 'readline';
 import fs from 'fs';
@@ -14,11 +15,12 @@ import { buildContextWindow } from './contextWindowManager.js';
 import { loadDeveloperProfile, updateDeveloperProfile, addCodingPattern } from './developerProfile.js';
 
 const DEFAULT_CONFIG = {
-  deepseekApiKey: "", 
+  deepseekApiKey: "",
+  openaiApiKey: "", // Added for OpenAI
   githubPat: "", 
-  llmModelYouTube: "deepseek-chat",
-  llmModelRepo: "deepseek-chat",
-  llmModelFollowUp: "deepseek-chat",
+  llmModelYouTube: "deepseek-chat", // User can change to "gpt-3.5-turbo" etc. in config.json
+  llmModelRepo: "deepseek-chat",    // User can change to "gpt-3.5-turbo" etc. in config.json
+  llmModelFollowUp: "deepseek-chat",// User can change to "gpt-3.5-turbo" etc. in config.json
   maxTokensYouTube: 1024,
   maxTokensRepo: 1024,
   maxTokensFollowUp: 500,
@@ -49,8 +51,102 @@ async function loadConfig() {
   }
   // Environment variables override config file for sensitive keys
   config.deepseekApiKey = process.env.DEEPSEEK_API_KEY || config.deepseekApiKey;
-  config.githubPat = process.env.GITHUB_PAT || config.githubPat; // GITHUB_PAT is used directly by github.js from process.env
+  // Load OpenAI API key: from .env first, then from config.json's apiKeys.openai, then from top-level config.openaiApiKey
+  config.openaiApiKey = process.env.OPENAI_API_KEY || (config.apiKeys && config.apiKeys.openai) || config.openaiApiKey;
+  if (config.openaiApiKey) {
+    console.log("[Config] OpenAI API Key loaded.");
+  } else {
+    console.log("[Config] OpenAI API Key NOT found in .env or config.json (checked OPENAI_API_KEY, config.apiKeys.openai, config.openaiApiKey).");
+  }
+  config.githubPat = process.env.GITHUB_PAT || config.githubPat; 
 }
+
+async function setupMemoryApi(app) {
+  const expressModule = await import('express');
+  const express = expressModule.default;
+  const bodyParser = await import('body-parser');
+  app.use(bodyParser.default.json());
+
+  // In-memory cache for memory entries and profiles for demo purposes
+  // In production, integrate with actual memory and profile modules
+  const memoryEntries = [];
+  const developerProfiles = [];
+
+  // Helper to simulate ID generation
+  const generateId = () => Math.random().toString(36).substr(2, 9);
+
+  // GET /api/memory?search=&layer=
+  app.get('/api/memory', (req, res) => {
+    let results = memoryEntries;
+    if (req.query.layer && req.query.layer !== 'all') {
+      results = results.filter(e => e.layer === req.query.layer);
+    }
+    if (req.query.search) {
+      const searchLower = req.query.search.toLowerCase();
+      results = results.filter(e => (e.title && e.title.toLowerCase().includes(searchLower)) || (e.content && e.content.toLowerCase().includes(searchLower)));
+    }
+    res.json(results);
+  });
+
+  // GET /api/memory/:id
+  app.get('/api/memory/:id', (req, res) => {
+    const entry = memoryEntries.find(e => e.id === req.params.id);
+    if (!entry) return res.status(404).json({ error: 'Memory entry not found' });
+    res.json(entry);
+  });
+
+  // PUT /api/memory/:id
+  app.put('/api/memory/:id', (req, res) => {
+    const index = memoryEntries.findIndex(e => e.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: 'Memory entry not found' });
+    memoryEntries[index] = { ...memoryEntries[index], ...req.body };
+    res.json(memoryEntries[index]);
+  });
+
+  // DELETE /api/memory/:id
+  app.delete('/api/memory/:id', (req, res) => {
+    const index = memoryEntries.findIndex(e => e.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: 'Memory entry not found' });
+    memoryEntries.splice(index, 1);
+    res.json({ success: true });
+  });
+
+  // GET /api/profiles
+  app.get('/api/profiles', (req, res) => {
+    res.json(developerProfiles);
+  });
+
+  // GET /api/profiles/:id
+  app.get('/api/profiles/:id', (req, res) => {
+    const profile = developerProfiles.find(p => p.id === req.params.id);
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+    res.json(profile);
+  });
+
+  // PUT /api/profiles/:id
+  app.put('/api/profiles/:id', (req, res) => {
+    const index = developerProfiles.findIndex(p => p.id === req.params.id);
+    if (index === -1) return res.status(404).json({ error: 'Profile not found' });
+    developerProfiles[index] = { ...developerProfiles[index], ...req.body };
+    res.json(developerProfiles[index]);
+  });
+
+  // POST /api/memory to add new memory entry (optional)
+  app.post('/api/memory', (req, res) => {
+    const newEntry = { id: generateId(), ...req.body };
+    memoryEntries.push(newEntry);
+    res.status(201).json(newEntry);
+  });
+
+  // POST /api/profiles to add new profile (optional)
+  app.post('/api/profiles', (req, res) => {
+    const newProfile = { id: generateId(), ...req.body };
+    developerProfiles.push(newProfile);
+    res.status(201).json(newProfile);
+  });
+}
+
+export { setupMemoryApi };
 
 function sanitizeFilename(name) {
   return name.replace(/[^a-z0-9_.-]/gi, '_').toLowerCase();
@@ -58,6 +154,18 @@ function sanitizeFilename(name) {
 
 async function main() {
   await loadConfig(); // Load configuration at the start
+
+  // Setup Express server for Memory Visualization UI API
+  const expressModule = await import('express');
+  const express = expressModule.default;
+  const app = express();
+  const port = 4000;
+
+  await setupMemoryApi(app);
+
+  app.listen(port, () => {
+    console.log(`Memory Visualization API server running at http://localhost:${port}`);
+  });
 
   // Prompt for developer ID
   const rlDev = readline.createInterface({
@@ -126,9 +234,32 @@ async function main() {
       break;
     }
 
-    const llmRepoConfig = { apiKey: config.deepseekApiKey, model: config.llmModelRepo, maxTokens: config.maxTokensRepo, temperature: config.temperatureRepo };
-    const llmYouTubeConfig = { apiKey: config.deepseekApiKey, model: config.llmModelYouTube, maxTokens: config.maxTokensYouTube, temperature: config.temperatureYouTube };
-    const llmFollowUpConfig = { apiKey: config.deepseekApiKey, model: config.llmModelFollowUp, maxTokens: config.maxTokensFollowUp, temperature: config.temperatureFollowUp };
+    const getApiKeyForModel = (modelName) => {
+      if (modelName.toLowerCase().startsWith('gpt-')) {
+        return config.openaiApiKey;
+      }
+      // Default to DeepSeek if not specified or not OpenAI
+      return config.deepseekApiKey; 
+    };
+
+    const llmRepoConfig = { 
+      apiKey: getApiKeyForModel(config.llmModelRepo), 
+      model: config.llmModelRepo, 
+      maxTokens: config.maxTokensRepo, 
+      temperature: config.temperatureRepo 
+    };
+    const llmYouTubeConfig = { 
+      apiKey: getApiKeyForModel(config.llmModelYouTube), 
+      model: config.llmModelYouTube, 
+      maxTokens: config.maxTokensYouTube, 
+      temperature: config.temperatureYouTube 
+    };
+    const llmFollowUpConfig = { 
+      apiKey: getApiKeyForModel(config.llmModelFollowUp), 
+      model: config.llmModelFollowUp, 
+      maxTokens: config.maxTokensFollowUp, 
+      temperature: config.temperatureFollowUp 
+    };
     const fileReadConfig = { maxTotalContentSize: config.maxTotalContentSize, maxSourceFilesToScan: config.maxSourceFilesToScan, maxSourceFileSize: config.maxSourceFileSize };
 
     try {
@@ -155,7 +286,17 @@ async function main() {
             if (priorityPaths.length > 0) console.log(`Found .agentinclude, prioritizing: ${priorityPaths.join(', ')}`);
           } catch (e) { console.log('No .agentinclude file found or it could not be read.'); }
 
-          const localProjectContent = await getRepoContentForAnalysis(url, priorityPaths, projectTypeHint, fileReadConfig); 
+          console.log(`[DEBUG_AGENT_LOCAL_PATH] Attempting to get content for local path: ${url}`);
+          console.log(`[DEBUG_AGENT_LOCAL_PATH] Parameters for getRepoContentForAnalysis: path=${url}, priorityPaths=${JSON.stringify(priorityPaths)}, hint=${projectTypeHint}, config=${JSON.stringify(fileReadConfig)}`);
+          let localProjectContent;
+          try {
+            localProjectContent = await getRepoContentForAnalysis(url, priorityPaths, projectTypeHint, fileReadConfig); 
+            console.log(`[DEBUG_AGENT_LOCAL_PATH] Result from getRepoContentForAnalysis (length): ${localProjectContent ? localProjectContent.length : 'null or empty'}`);
+          } catch (getContentError) {
+            console.error(`[DEBUG_AGENT_LOCAL_PATH] Error calling getRepoContentForAnalysis:`, getContentError);
+            localProjectContent = null;
+          }
+
           if (!localProjectContent) {
             console.log('Could not extract relevant content from the local project.');
           } else {

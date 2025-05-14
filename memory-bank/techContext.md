@@ -30,11 +30,16 @@
 
 ## 4. External Services and APIs
 -   **DeepSeek API (`https://api.deepseek.com/v1/chat/completions`):**
-    -   Primary LLM for content analysis and blueprint generation.
-    -   Requires `DEEPSEEK_API_KEY` environment variable or `config.json` entry.
--   **OpenAI API (`https://api.openai.com/v1/embeddings`):**
-    -   Used by `vector-memory/embeddingProvider.js` to generate text embeddings (model `text-embedding-ada-002`).
-    -   Requires OpenAI API key, configurable via `config.json` (`apiKeys.openai`) or constructor parameter.
+    -   One of the primary LLMs for content analysis and blueprint generation.
+    -   Requires `DEEPSEEK_API_KEY` (from `.env` or `config.json`).
+-   **OpenAI API:**
+    -   **Chat Completions (`https://api.openai.com/v1/chat/completions`):**
+        -   Alternative LLM provider for content analysis and blueprint generation.
+        -   Requires `OPENAI_API_KEY` (from `.env` or `config.json` via `apiKeys.openai` or `openaiApiKey`).
+        -   Provider selected based on model name prefix (e.g., "gpt-") in `config.json` settings like `llmModelRepo`.
+    -   **Embeddings (`https://api.openai.com/v1/embeddings`):**
+        -   Used by `vector-memory/embeddingProvider.js` to generate text embeddings (model `text-embedding-ada-002`).
+        -   Requires `OPENAI_API_KEY`.
 -   **GitHub:**
     -   Public and private repositories are cloned using the `git` CLI.
     -   `GITHUB_PAT` environment variable or `config.json` entry can be used for private repository access.

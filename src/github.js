@@ -67,6 +67,10 @@ export async function getRepoContentForAnalysis(
     maxSourceFileSize = 51200    // Default 50KB
   } = fileReadConfig;
 
+  console.log(`[DEBUG_GITHUB_CONTENT] Starting getRepoContentForAnalysis for path: ${clonedRepoPath}`);
+  console.log(`[DEBUG_GITHUB_CONTENT] Project type hint: ${projectTypeHint}, Priority paths/globs: ${JSON.stringify(priorityPathsOrGlobs)}`);
+  console.log(`[DEBUG_GITHUB_CONTENT] File read config: ${JSON.stringify(fileReadConfig)}`);
+
   console.log(`Analyzing content in ${clonedRepoPath}... (Project type hint: ${projectTypeHint})`);
   if (priorityPathsOrGlobs.length > 0) {
     console.log(`Using .agentinclude patterns: ${priorityPathsOrGlobs.join(', ')}`);
@@ -77,19 +81,29 @@ export async function getRepoContentForAnalysis(
 
   async function addFileCandidate(details) {
     const absolutePath = details.path;
-    if (addedFilePaths.has(absolutePath)) return;
+    if (addedFilePaths.has(absolutePath)) {
+      console.log(`[DEBUG_GITHUB_CONTENT] File candidate ${absolutePath} already added. Skipping.`);
+      return;
+    }
     try {
       const stats = await fs.stat(absolutePath);
       if (stats.isFile()) {
         filesToRead.push(details);
         addedFilePaths.add(absolutePath);
+        console.log(`[DEBUG_GITHUB_CONTENT] Added file candidate: ${JSON.stringify(details)}`);
+      } else {
+        console.log(`[DEBUG_GITHUB_CONTENT] Path ${absolutePath} is not a file. Skipping.`);
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { 
+      console.warn(`[DEBUG_GITHUB_CONTENT] Error stating file ${absolutePath}: ${e.message}. Skipping.`);
+    }
   }
 
   for (const pattern of priorityPathsOrGlobs) {
+    console.log(`[DEBUG_GITHUB_CONTENT] Processing glob pattern from .agentinclude: "${pattern}"`);
     try {
       const matchedAbsolutePaths = await glob(pattern, { nodir: true, dot: true, follow: false, cwd: clonedRepoPath, absolute: true });
+      console.log(`[DEBUG_GITHUB_CONTENT] Glob pattern "${pattern}" matched: ${JSON.stringify(matchedAbsolutePaths)}`);
       for (const absPath of matchedAbsolutePaths) {
         await addFileCandidate({ 
           name: path.relative(clonedRepoPath, absPath), 
@@ -99,7 +113,7 @@ export async function getRepoContentForAnalysis(
         });
       }
     } catch (globError) {
-      console.warn(`Error processing glob pattern "${pattern}" from .agentinclude: ${globError.message}`);
+      console.warn(`[DEBUG_GITHUB_CONTENT] Error processing glob pattern "${pattern}" from .agentinclude: ${globError.message}`);
     }
   }
 
@@ -189,35 +203,38 @@ export async function getRepoContentForAnalysis(
 
   let currentTotalSize = 0;
 
+  console.log(`[DEBUG_GITHUB_CONTENT] Sorted files to read: ${JSON.stringify(filesToRead.map(f => f.name))}`);
   for (const file of filesToRead) {
+    console.log(`[DEBUG_GITHUB_CONTENT] Attempting to read file: ${file.path} (Type: ${file.type}, Priority: ${file.priority})`);
     if (currentTotalSize >= maxTotalContentSize) { // Use config
-        console.log(`Reached max total content size limit (${maxTotalContentSize} bytes). Skipping remaining files starting with: ${file.name}`);
+        console.log(`[DEBUG_GITHUB_CONTENT] Reached max total content size limit (${maxTotalContentSize} bytes). Skipping remaining files starting with: ${file.name}`);
         break;
     }
     try {
       const content = await fs.readFile(file.path, 'utf8');
       const contentSize = Buffer.byteLength(content, 'utf8');
+      console.log(`[DEBUG_GITHUB_CONTENT] Read file ${file.name}, size: ${contentSize} bytes.`);
 
       if (currentTotalSize + contentSize > maxTotalContentSize && concatenatedContent.length > 0) { // Use config
-          console.log(`Skipping ${file.name} (${file.type}, ${contentSize} bytes, priority ${file.priority}) as it would exceed total content size limit.`);
+          console.log(`[DEBUG_GITHUB_CONTENT] Skipping ${file.name} (${file.type}, ${contentSize} bytes, priority ${file.priority}) as it would exceed total content size limit.`);
           continue;
       }
       
       concatenatedContent += `\n\n--- File: ${file.name} (${file.type}) ---\n\n${content}`;
       currentTotalSize += contentSize;
-      console.log(`Added ${file.name} (${file.type}, ${contentSize} bytes, priority ${file.priority}) to analysis content.`);
+      console.log(`[DEBUG_GITHUB_CONTENT] Added ${file.name} (${file.type}, ${contentSize} bytes, priority ${file.priority}) to analysis content. Current total size: ${currentTotalSize}`);
 
     } catch (error) {
-      console.warn(`Could not read file ${file.path}: ${error.message}`);
+      console.warn(`[DEBUG_GITHUB_CONTENT] Could not read file ${file.path}: ${error.message}`);
     }
   }
   
   if (!concatenatedContent) {
-      console.warn("No content could be extracted from the repository for analysis.");
+      console.warn("[DEBUG_GITHUB_CONTENT] No content could be extracted from the repository for analysis.");
       return "";
   }
 
-  console.log(`Total content size for analysis: ${currentTotalSize} bytes.`);
+  console.log(`[DEBUG_GITHUB_CONTENT] Total content size for analysis: ${currentTotalSize} bytes.`);
   return concatenatedContent;
 }
 

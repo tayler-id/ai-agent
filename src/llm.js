@@ -11,10 +11,21 @@ import fetch from 'node-fetch';
 export async function analyzeTranscript(transcript, llmConfig) {
   const { apiKey, model, maxTokens, temperature } = llmConfig;
   if (!apiKey) {
-    console.error('API key not provided to analyzeTranscript.');
-    throw new Error("API key not configured for transcript analysis.");
+    console.error(`API key not provided for model ${model} in analyzeTranscript.`);
+    throw new Error(`API key not configured for model ${model} in transcript analysis.`);
   }
-  const endpoint = "https://api.deepseek.com/v1/chat/completions";
+
+  let endpoint;
+  let effectiveModel = model;
+  const isOpenAI = model.toLowerCase().startsWith('gpt-');
+
+  if (isOpenAI) {
+    endpoint = "https://api.openai.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using OpenAI provider for model (analyzeTranscript): ${model}`);
+  } else { // Assume DeepSeek
+    endpoint = "https://api.deepseek.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using DeepSeek provider for model (analyzeTranscript): ${model}`);
+  }
 
   const prompt = `
 You are an expert technical analyst and educator. Your task is to analyze the provided YouTube video transcript and generate a detailed "Improvement and Re-implementation Blueprint".
@@ -56,7 +67,7 @@ Focus on providing practical, actionable information for a downstream AI coding 
 `;
 
   const body = {
-    model,
+    model: effectiveModel,
     messages: [
       { role: "system", content: "You are an expert technical analyst and educator." },
       { role: "user", content: prompt }
@@ -65,26 +76,70 @@ Focus on providing practical, actionable information for a downstream AI coding 
     max_tokens: maxTokens || 1024
   };
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
+  // Debug: log the request details for troubleshooting
+  const providerNameForLog = isOpenAI ? "OpenAI" : "DeepSeek";
+  console.log(`[${providerNameForLog} LLM] Requesting (analyzeTranscript):`, endpoint);
+  console.log(`[${providerNameForLog} LLM] Headers:`, {
+    "Authorization": `Bearer ${apiKey ? apiKey.slice(0, 8) + '...' : ''}`,
+    "Content-Type": "application/json"
   });
+  console.log(`[${providerNameForLog} LLM] Body:`, JSON.stringify(body, null, 2));
+
+  let res;
+  try {
+    const domainToLookup = new URL(endpoint).hostname;
+    // Add DNS lookup for debugging
+    const dns = await import('dns');
+    await new Promise((resolve, reject) => {
+      dns.default.lookup(domainToLookup, { family: 4 }, (err, address, family) => {
+        if (err) {
+          console.error(`[LLM_DEBUG] dns.lookup (IPv4) FAILED for ${domainToLookup} (analyzeTranscript):`, err);
+          // We don't reject here, let fetch try anyway to see its specific error
+        } else {
+          console.log(`[LLM_DEBUG] dns.lookup SUCCEEDED for ${domainToLookup} (analyzeTranscript): Address: ${address}, Family: ${family}`);
+        }
+        resolve();
+      });
+    });
+
+    console.log(`[LLM_DEBUG] Attempting fetch to: ${endpoint} with API key (first 8 chars): ${apiKey ? apiKey.substring(0, 8) + '...' : 'NOT PROVIDED'} (analyzeTranscript)`);
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (fetchError) {
+    console.error(`[LLM_DEBUG] Network or fetch-related error occurred:`, fetchError);
+    // Log more details if available, e.g., error.cause on newer Node versions
+    if (fetchError.cause) {
+        console.error(`[LLM_DEBUG] Fetch error cause:`, fetchError.cause);
+    }
+    const providerName = isOpenAI ? "OpenAI" : "DeepSeek";
+    throw new Error(`Network error during fetch to ${providerName} API (analyzeTranscript): ${fetchError.message}`);
+  }
 
   if (!res.ok) {
-    throw new Error(`DeepSeek API error: ${res.status} ${res.statusText}`);
+    const errorBody = await res.text();
+    const providerName = isOpenAI ? "OpenAI" : "DeepSeek";
+    console.error(`[${providerName} LLM] API Error Status (analyzeTranscript):`, res.status, res.statusText);
+    console.error(`[${providerName} LLM] API Error Body (analyzeTranscript):`, errorBody);
+    throw new Error(`${providerName} API error (analyzeTranscript): ${res.status} ${res.statusText} - ${errorBody}`);
   }
 
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("No response from DeepSeek LLM");
+  if (!content) throw new Error(`No response from ${isOpenAI ? "OpenAI" : "DeepSeek"} LLM (analyzeTranscript)`);
 
   // Try to parse the JSON from the LLM response
   try {
     let jsonString = content;
+
+    // Remove Markdown code block markers if present
+    jsonString = jsonString.replace(/```json|```/gi, '').trim();
+
     // Attempt to extract JSON from a string that might contain it within other text or markdown
     const firstBrace = jsonString.indexOf('{');
     const lastBrace = jsonString.lastIndexOf('}');
@@ -93,10 +148,23 @@ Focus on providing practical, actionable information for a downstream AI coding 
     } else {
       // If no braces, it's not JSON, or malformed beyond simple extraction
       console.error("Could not find JSON object in LLM response for transcript. Raw content:", content);
-      throw new Error("No valid JSON object found in LLM response for transcript.");
+      throw new Error("No valid JSON object found in LLM response for transcript. The model may have returned the prompt or an error instead of a result.");
     }
-    
-    const result = JSON.parse(jsonString); // Attempt to parse the extracted string
+
+    // Try to parse, but if truncated, attempt to recover
+    let result;
+    try {
+      result = JSON.parse(jsonString);
+    } catch (err) {
+      // Try to fix common truncation: find last complete object/array
+      const truncated = jsonString.replace(/,\s*("[^"]*"\s*:\s*[^,}]*\s*)*$/, '');
+      try {
+        result = JSON.parse(truncated);
+        console.warn("Parsed truncated JSON from LLM output.");
+      } catch (err2) {
+        throw new Error("Failed to parse LLM response for transcript analysis as JSON: " + err.message + "\nRaw output:\n" + content);
+      }
+    }
 
     // Basic validation for the new blueprint structure
     if (result.originalProjectSummary && result.suggestedEnhancedVersion && 
@@ -104,19 +172,35 @@ Focus on providing practical, actionable information for a downstream AI coding 
         result.suggestedEnhancedVersion.keyEnhancements.every(e => e.actionableStepsForCodingAgent)) {
       return result;
     }
-    console.error("LLM response for transcript analysis did not match expected blueprint structure:", result);
+    // If the result is just the prompt or doesn't match, show a clear error
+    if (jsonString.trim().startsWith("{") && jsonString.trim().endsWith("}")) {
+      console.error("LLM response for transcript analysis did not match expected blueprint structure. Raw JSON:", jsonString);
+      throw new Error("The LLM did not return a valid blueprint. It may have returned the prompt or an error. Please check your model, API key, and try again.");
+    }
     throw new Error("Incomplete or malformed blueprint from LLM for transcript content.");
   } catch (err) {
     console.error("Failed to parse LLM response for transcript analysis as JSON. Raw output:\n", content);
-    throw new Error("Failed to parse LLM response for transcript analysis as JSON: " + err.message);
+    throw new Error("Failed to parse LLM response for transcript analysis as JSON: " + err.message + "\nRaw output:\n" + content);
   } // This closes the catch (err)
 } // This correctly closes analyzeTranscript
 
 export async function getFollowUpAnswer(contextContent, initialAnalysis, userQuestion, llmConfig) {
-  const { apiKey, model, maxTokens, temperature } = llmConfig;
+  const { apiKey, model, maxTokens, temperature } = llmConfig; // model here is the original model name from config
   if (!apiKey) {
-    console.error('API key not provided to getFollowUpAnswer.');
-    return "API key not configured. Cannot answer follow-up.";
+    console.error(`API key not provided for model ${model} in getFollowUpAnswer.`);
+    return `API key not configured for model ${model}. Cannot answer follow-up.`;
+  }
+  
+  let endpointFollowUp;
+  let effectiveModelFollowUp = model;
+  const isOpenAIFollowUp = model.toLowerCase().startsWith('gpt-');
+
+  if (isOpenAIFollowUp) {
+    endpointFollowUp = "https://api.openai.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using OpenAI provider for model (getFollowUpAnswer): ${model}`);
+  } else { // Assume DeepSeek
+    endpointFollowUp = "https://api.deepseek.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using DeepSeek provider for model (getFollowUpAnswer): ${model}`);
   }
 
   // The 'initialAnalysis' is now the full blueprint object.
@@ -144,14 +228,28 @@ User's Request (this could be a question OR a refinement instruction): "${userQu
 Response:`;
 
   try {
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    const domainToLookup = new URL(endpointFollowUp).hostname;
+    const dnsFollowUp = await import('dns');
+    await new Promise((resolve, reject) => {
+      dnsFollowUp.default.lookup(domainToLookup, { family: 4 }, (err, address, family) => {
+        if (err) {
+          console.error(`[LLM_DEBUG] dns.lookup (IPv4) FAILED for ${domainToLookup} (getFollowUpAnswer):`, err);
+        } else {
+          console.log(`[LLM_DEBUG] dns.lookup SUCCEEDED for ${domainToLookup} (getFollowUpAnswer): Address: ${address}, Family: ${family}`);
+        }
+        resolve();
+      });
+    });
+
+    console.log(`[LLM_DEBUG] Attempting fetch (getFollowUpAnswer) to: ${endpointFollowUp} with API key (first 8 chars): ${apiKey ? apiKey.substring(0, 8) + '...' : 'NOT PROVIDED'}`);
+    const response = await fetch(endpointFollowUp, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: model || "deepseek-chat", 
+        model: effectiveModelFollowUp, 
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: userPrompt }
@@ -161,22 +259,25 @@ Response:`;
       })
     });
 
+    const providerName = isOpenAIFollowUp ? "OpenAI" : "DeepSeek";
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`API Error in getFollowUpAnswer: ${response.status} ${response.statusText}`, errorBody);
-      return `Error from LLM API: ${response.statusText}`;
+      console.error(`[${providerName} LLM] API Error in getFollowUpAnswer: ${response.status} ${response.statusText}`);
+      console.error(`[${providerName} LLM] API Error Body for getFollowUpAnswer:`, errorBody);
+      return `Error from ${providerName} LLM API: ${response.statusText}`;
     }
 
     const data = await response.json();
     if (data.choices && data.choices.length > 0 && data.choices[0].message && data.choices[0].message.content) {
       return data.choices[0].message.content.trim();
     } else {
-      console.error('No content in LLM response for getFollowUpAnswer:', data);
-      return "Could not get a follow-up answer from the LLM.";
+      console.error(`No content in ${providerName} LLM response for getFollowUpAnswer:`, data);
+      return `Could not get a follow-up answer from ${providerName} LLM.`;
     }
   } catch (error) {
-    console.error('Error in getFollowUpAnswer LLM call:', error);
-    return `Error during follow-up LLM call: ${error.message}`;
+    const providerName = isOpenAIFollowUp ? "OpenAI" : "DeepSeek";
+    console.error(`Error in getFollowUpAnswer ${providerName} LLM call:`, error);
+    return `Error during follow-up ${providerName} LLM call: ${error.message}`;
   }
 }
 
@@ -189,10 +290,21 @@ Response:`;
 export async function analyzeRepoContent(repoContentString, llmConfig) {
   const { apiKey, model, maxTokens, temperature } = llmConfig;
    if (!apiKey) {
-    console.error('API key not provided to analyzeRepoContent.');
-    throw new Error("API key not configured for repository analysis.");
+    console.error(`API key not provided for model ${model} in analyzeRepoContent.`);
+    throw new Error(`API key not configured for model ${model} in repository analysis.`);
   }
-  const endpoint = "https://api.deepseek.com/v1/chat/completions";
+
+  let endpoint;
+  let effectiveModel = model;
+  const isOpenAI = model.toLowerCase().startsWith('gpt-');
+
+  if (isOpenAI) {
+    endpoint = "https://api.openai.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using OpenAI provider for model: ${model}`);
+  } else { // Assume DeepSeek
+    endpoint = "https://api.deepseek.com/v1/chat/completions";
+    console.log(`[LLM_DEBUG] Using DeepSeek provider for model: ${model}`);
+  }
 
   const prompt = `
 You are an expert software architect and reverse engineer. Your task is to analyze the provided GitHub repository content and generate a detailed "Improvement and Re-implementation Blueprint".
@@ -234,7 +346,7 @@ Focus on providing practical, actionable information for a downstream AI coding 
 `;
 
   const body = {
-    model,
+    model: effectiveModel, // Use effectiveModel which might be different from original llmConfig.model if provider changes
     messages: [
       { role: "system", content: "You are an expert software architect and technical analyst." },
       { role: "user", content: prompt }
@@ -243,23 +355,51 @@ Focus on providing practical, actionable information for a downstream AI coding 
     max_tokens: maxTokens || 1024
   };
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
-
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`DeepSeek API error: ${res.status} ${res.statusText} - ${errorBody}`);
+  let resRepo;
+  try {
+    const domainToLookup = new URL(endpoint).hostname;
+    // Add DNS lookup for debugging
+    const dnsRepo = await import('dns');
+    await new Promise((resolve, reject) => {
+      dnsRepo.default.lookup(domainToLookup, { family: 4 }, (err, address, family) => {
+        if (err) {
+          console.error(`[LLM_DEBUG] dns.lookup (IPv4) FAILED for ${domainToLookup} (analyzeRepoContent):`, err);
+        } else {
+          console.log(`[LLM_DEBUG] dns.lookup SUCCEEDED for ${domainToLookup} (analyzeRepoContent): Address: ${address}, Family: ${family}`);
+        }
+        resolve();
+      });
+    });
+    
+    console.log(`[LLM_DEBUG] Attempting fetch (analyzeRepoContent) to: ${endpoint} with API key (first 8 chars): ${apiKey ? apiKey.substring(0, 8) + '...' : 'NOT PROVIDED'}`);
+    resRepo = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (fetchErrorRepo) {
+    console.error(`[LLM_DEBUG] Network or fetch-related error occurred (analyzeRepoContent):`, fetchErrorRepo);
+    if (fetchErrorRepo.cause) {
+        console.error(`[LLM_DEBUG] Fetch error cause (analyzeRepoContent):`, fetchErrorRepo.cause);
+    }
+    const providerName = isOpenAI ? "OpenAI" : "DeepSeek";
+    throw new Error(`Network error during fetch to ${providerName} API (analyzeRepoContent): ${fetchErrorRepo.message}`);
   }
 
-  const data = await res.json();
+  if (!resRepo.ok) {
+    const errorBody = await resRepo.text();
+    const providerName = isOpenAI ? "OpenAI" : "DeepSeek";
+    console.error(`[${providerName} LLM] API Error Status (analyzeRepoContent):`, resRepo.status, resRepo.statusText);
+    console.error(`[${providerName} LLM] API Error Body (analyzeRepoContent):`, errorBody);
+    throw new Error(`${providerName} API error (analyzeRepoContent): ${resRepo.status} ${resRepo.statusText} - ${errorBody}`);
+  }
+
+  const data = await resRepo.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("No response from DeepSeek LLM for repo analysis");
+  if (!content) throw new Error(`No response from ${isOpenAI ? "OpenAI" : "DeepSeek"} LLM for repo analysis`);
 
   try {
     let jsonString = content;
