@@ -1,9 +1,40 @@
 # AI Agent Project Rules
 
+## Cline's Core Operational Principles
+
+### 1. Memory Bank Reliance
+- **Critical:** Cline MUST read ALL memory bank files (`projectbrief.md`, `productContext.md`, `systemPatterns.md`, `techContext.md`, `activeContext.md`, `progress.md`, and any other relevant files in `memory-bank/`) at the start of EVERY task. This is not optional and is essential for maintaining context and continuity.
+
+### 2. Planning, Execution, and Reflection Cycle
+- **Plan Extensively:** Before each tool use or significant action, Cline MUST plan the steps.
+- **Reflect on Outcomes:** After each tool use, Cline MUST reflect on the outcome, incorporating learnings into subsequent steps and updating the Memory Bank if necessary.
+- **Self-Improving Reflection:** Before using `attempt_completion` for non-trivial tasks or tasks involving user feedback, Cline MUST offer to reflect on the interaction and suggest improvements to these `.clinerules` if the user agrees.
+
+### 3. Preferred MCP Tool Usage
+- **Task Manager:** MUST be used for every new multi-step task to plan and track progress (`github.com/pashpashpash/mcp-taskmanager`).
+    -   This includes strictly following the `mark_task_done` -> `user_approval` -> `get_next_task` cycle.
+- **Sequential Thinking:** SHOULD be used for complex problem-solving or when a detailed thought process needs to be recorded (`github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking`).
+- **Knowledge Graph (Memory MCP):** SHOULD be used to store and retrieve structured knowledge about the project, entities, and relationships (`github.com/modelcontextprotocol/servers/tree/main/src/memory`).
+- **Context7:** SHOULD be used for fetching up-to-date library documentation (`github.com/upstash/context7-mcp`). Resolve library ID first.
+- **Exa Search:** SHOULD be used for initial research or to back up decision-making before generating task lists for the Task Manager (`github.com/exa-labs/exa-mcp-server`).
+- **File System Tools:** ALWAYS use Cline's built-in file system tools (`read_file`, `write_to_file`, `replace_in_file`, `list_files`) for interacting with files, rather than shell commands like `cat` or `ls` unless absolutely necessary for a specific unsupported operation.
+
+---
+
+## Test Output Clarity
+- When running test scripts or integration checks, ensure that all output is human-readable and actionable.
+- Do not log raw object references (e.g., Promise, Iterator, or RecordBatchIterator objects) without materializing and displaying their contents.
+- For async iterators or database query results, always await and print the actual records or results, not just the iterator object.
+- If a test script does not provide clear output, update it to do so before considering the test complete.
+
 ## Core Dependencies & Setup
 -   **`git` CLI:** This agent's GitHub analysis feature relies on the `git` command-line tool being installed and accessible in the system's PATH. Cloning will fail otherwise.
 -   **`DEEPSEEK_API_KEY`:** This environment variable must be set with a valid DeepSeek API key for LLM analysis to function.
     -   In PowerShell for a session: `$env:DEEPSEEK_API_KEY = "YOUR_KEY_HERE"`
+-   **Multiple API Provider Management (e.g., LLMs):**
+    -   When supporting multiple similar external API providers (e.g., DeepSeek and OpenAI for LLM tasks), ensure clear and consistent configuration for API keys (prefer `.env` for all keys like `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`).
+    -   Implement a straightforward mechanism for selecting the active provider (e.g., via `config.json` model name prefixes or a dedicated provider setting).
+    -   Ensure code robustly loads and uses the correct key for the selected provider.
 -   **Node.js Version:** Adhere to the version specified in `.nvmrc`. Use `nvm use` (and specify the version explicitly in chained PowerShell commands, e.g., `nvm use 20.11.1; npm install`).
 -   **Temporary Files:** The agent creates temporary directories under `ai-agent/temp-clones/` for cloned repositories. These should be automatically cleaned up by `github.js -> cleanupRepo()`. Monitor this if issues arise.
 
@@ -17,3 +48,37 @@
 -   Cline can execute the command to *start* the agent (e.g., `node src/agent.js`).
 -   Cline **cannot** interact with the agent's subsequent CLI prompts (e.g., typing in a URL when the agent asks). The user must perform these interactions.
 -   Provide console output to Cline for debugging if issues occur during user-led testing.
+
+## Continuous Improvement & Integration Lessons
+- After moving or refactoring files, always verify import paths in all affected modules.
+- When integrating third-party libraries, check and match API method names to the official documentation (e.g., camelCase vs snake_case).
+- When wrapping third-party APIs, error handling should be specific to error types/messages, not broad catch-alls. Always check error messages/types before attempting resource creation (e.g., only create a DB table if the error indicates "not found").
+- When using environment variables for secrets (like API keys), tests should clearly warn and fail gracefully if not set.
+- After any test or integration failure, update .clinerules with the root cause and the fix, to prevent recurrence.
+
+---
+
+## Codebase & Memory Bank Synchronization Protocol
+
+When a significant discrepancy is identified between the live codebase and the Memory Bank documentation, or upon user request for a full audit, the following protocol should be initiated:
+
+1.  **Acknowledge & Plan:**
+    *   Acknowledge the desynchronization.
+    *   Use the Task Manager (`github.com/pashpashpash/mcp-taskmanager`) to create a detailed plan for the audit and update process. This plan should include:
+        *   Listing/identifying key source code modules.
+        *   Reading relevant source files.
+        *   Analyzing the codebase to understand current state (architecture, features, tech).
+        *   Systematically updating EACH core Memory Bank file (`projectbrief.md`, `productContext.md`, `systemPatterns.md`, `techContext.md`, `activeContext.md`, `progress.md`).
+        *   Updating the Knowledge Graph (`github.com/modelcontextprotocol/servers/tree/main/src/memory`) with new/changed entities and relations.
+        *   Providing a comprehensive updated project overview post-audit.
+        *   Committing and pushing all Memory Bank changes to version control.
+
+2.  **Execution & Verification:**
+    *   Execute tasks sequentially, seeking user approval via the Task Manager at each critical step (e.g., after file reading, after analysis, after each Memory Bank file update).
+    *   Use `write_to_file` for comprehensive Memory Bank document rewrites if changes are substantial, rather than many small `replace_in_file` operations.
+    *   Ensure the `activeContext.md` clearly states that an audit is in progress and then reflects the post-audit roadmap.
+    *   Ensure `progress.md` is updated to accurately list "Actually Completed & Implemented Features" based *only* on the audit findings.
+
+3.  **Post-Audit:**
+    *   The updated Memory Bank becomes the new source of truth.
+    *   Offer reflection on the audit process itself for potential `.clinerules` refinement.

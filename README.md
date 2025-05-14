@@ -17,6 +17,9 @@ This project is an AI agent built in a Node.js environment, fully aligned with M
 
 ## Features
 
+- **Semantic Memory with LanceDB:** Stores, retrieves, and semantically searches memory entries using LanceDB as a local vector database and OpenAI embeddings for vectorization.
+- **Embedding Pipeline:** All memory entries, code snippets, and documentation are embedded using OpenAI's API and stored in LanceDB for fast semantic retrieval.
+- **Tested Integration:** Includes a test script that verifies the full semantic memory flow (embedding, storage, retrieval, and search) with human-readable output.
 - Robust YouTube transcript retrieval with a 3-step fallback:
   1. Try MCP tool (`get_youtube_video_transcript`)
   2. Fallback to `youtube-transcript-plus` Node.js package
@@ -30,12 +33,14 @@ This project is an AI agent built in a Node.js environment, fully aligned with M
 
 - Node.js 20.11.1 (`nvm use` recommended)
 - `node-fetch` installed (already included in package.json)
+- `@lancedb/lancedb` and `apache-arrow` installed for LanceDB integration
 - `git` command-line tool installed and in your system's PATH (for GitHub repository analysis).
-- Internet access for fetching YouTube transcripts, cloning GitHub repositories, and calling the LLM API.
+- Internet access for fetching YouTube transcripts, cloning GitHub repositories, calling the LLM API, and generating embeddings.
 - **API Keys:**
+  - **OpenAI API Key:** Required for embedding pipeline and semantic memory.
   - **DeepSeek API Key:** Required for LLM analysis.
   - **GitHub Personal Access Token (PAT):** Optional, but needed for accessing private repositories or to avoid rate limits on public repositories.
-- These keys can be set as environment variables (`DEEPSEEK_API_KEY`, `GITHUB_PAT`) or in the `config.json` file. Environment variables will override `config.json` values.
+- These keys can be set as environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GITHUB_PAT`) or in the `config.json` file. Environment variables will override `config.json` values.
 
 ## Configuration
 
@@ -43,6 +48,7 @@ The agent can be configured using a `config.json` file in the project root (`ai-
 
 **`config.json` Settings:**
 
+-   `openaiApiKey` (string): Your OpenAI API key for embeddings. (Overrides `OPENAI_API_KEY` env var if env var is not set).
 -   `deepseekApiKey` (string): Your DeepSeek API key. (Overrides `DEEPSEEK_API_KEY` env var if env var is not set).
 -   `githubPat` (string): Your GitHub Personal Access Token. (Overrides `GITHUB_PAT` env var if env var is not set).
 -   `llmModelYouTube` (string): The LLM model to use for YouTube transcript analysis (e.g., "deepseek-chat").
@@ -60,7 +66,7 @@ The agent can be configured using a `config.json` file in the project root (`ai-
 -   `maxSourceFilesToScan` (number): Maximum number of source files to consider for inclusion in repository/local analysis (after READMEs, memory bank, and package files).
 -   `maxSourceFileSize` (number): Maximum size (in bytes) for an individual source file to be included.
 
-Environment variables `DEEPSEEK_API_KEY` and `GITHUB_PAT` will always take precedence if set.
+Environment variables `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, and `GITHUB_PAT` will always take precedence if set.
 
 ## Usage
 
@@ -70,18 +76,35 @@ Environment variables `DEEPSEEK_API_KEY` and `GITHUB_PAT` will always take prece
    node src/agent.js
    ```
 
-2. When prompted, enter a YouTube video URL.
+2. When prompted, enter a YouTube video URL or GitHub repository URL.
 
 3. The agent will:
    - Fetch the transcript for the video using the fallback strategy
    - Analyze the transcript with DeepSeek LLM
    - Generate a set of prompts for a coding agent based on the video content
    - Save the prompts to `prompts.md`
+   - Store, embed, and retrieve semantic memory using LanceDB and OpenAI embeddings
    - Enter an interactive mode where you can ask follow-up questions or analyze new videos
 
 ## Roadmap
 
-- Add persistent conversation history and advanced features
+- **Next:** Memory Visualization and Editing UI (CLI or web-based)
+- Automated contextual prompt engineering
+- Agent autonomy and task chaining
+- Plugin/tooling ecosystem for external integrations
+- Cloud/server deployment, multi-user support, and advanced analytics
 - Support for additional LLM providers (Together, Groq, OpenAI, etc.)
 - Enhanced prompt engineering and output formatting
 - Optional: export full conversation history to Markdown
+
+---
+
+**What’s Done:**  
+- Hierarchical memory, dynamic context, profile learning, and full semantic memory retrieval via LanceDB and OpenAI embeddings.
+- Test script for LanceDB integration and embedding pipeline.
+
+**What’s Needed / Next:**  
+- Memory Visualization and Editing UI
+- Automated prompt engineering
+- Agent autonomy and task chaining
+- Plugin ecosystem, cloud deployment, and advanced analytics
