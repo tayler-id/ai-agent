@@ -1,60 +1,77 @@
-# Technical Context: AI Agent for Content Analysis
+# Technical Context: AI Agent for Content Analysis & Personalized Assistance
 
-## 1. Core Technologies
--   **Runtime Environment:** Node.js (version specified in `.nvmrc`, likely a recent LTS version like 18.x or 20.x).
--   **Programming Language:** JavaScript (ES Modules syntax).
--   **Package Manager:** npm (comes with Node.js).
+## 1. Core Technologies & Environment
+-   **Runtime Environment:** Node.js (version specified in `.nvmrc`, likely a recent LTS like 18.x or 20.x).
+-   **Programming Language:** JavaScript (ES Modules syntax: `import`/`export`).
+-   **Package Manager:** npm (manages dependencies via `package.json` and `package-lock.json`).
+-   **Operating System Context:** Developed and primarily tested on macOS, with user's default shell being zsh. PowerShell is also mentioned in relation to environment variable setup in `.clinerules`.
 
-## 2. Key Node.js Modules Used
--   **`readline`:** Core Node.js module for creating command-line interfaces and handling user input asynchronously.
-    -   Used in `agent.js` for the main interaction loop.
--   **`fs` (File System):** Core Node.js module for file system operations.
-    -   `fs.promises` is used for asynchronous file operations (e.g., `mkdir`, `mkdtemp`, `writeFile`, `readFile`, `rm`).
-    -   Used in `agent.js` for ensuring `temp-clones` directory exists.
-    -   Used in `github.js` for creating temporary clone directories, reading file contents from cloned repos, and cleaning up.
-    -   Used in `agent.js` (or `promptGenerator.js`) for saving output to `prompts.md`.
--   **`path`:** Core Node.js module for working with file and directory paths in a platform-independent way.
-    -   Used extensively for constructing paths for temporary directories, cloned files, etc.
--   **`child_process`:** Core Node.js module for spawning child processes.
-    -   `exec` function is used (via `util.promisify` to create `execAsync`) in `github.js` to run the `git clone` command.
--   **`util`:** Core Node.js module.
-    -   `promisify` is used to convert callback-based functions (like `child_process.exec`) into Promise-based functions.
+## 2. Key Node.js Core Modules Used
+-   **`readline`:** For CLI interactions in `src/agent.js`.
+-   **`fs/promises`:** For asynchronous file system operations (directory creation, file read/write, delete) across various modules (`agent.js`, `github.js`, `memory.js`, `hierarchicalMemory.js`, `developerProfile.js`).
+-   **`path`:** For platform-independent path manipulation.
+-   **`child_process` (`exec` via `util.promisify`):** In `src/github.js` for executing `git clone` commands.
+-   **`util` (`promisify`):** Used for converting callback-based functions to Promise-based.
+-   **`url` (`fileURLToPath`):** Used in `src/agent.js` for module path resolution.
 
-## 3. External Dependencies (Managed via `package.json`)
--   **`node-fetch` (or similar HTTP client):**
-    -   Used in `llm.js` to make HTTP POST requests to the DeepSeek LLM API.
-    -   *Assumption: If not `node-fetch`, then another common HTTP client like `axios` might be used.*
--   **Potentially others for YouTube transcript fetching:** The `youtube.js` module might use specific libraries for interacting with YouTube APIs or transcript services.
+## 3. Key External Dependencies (Inferred from Imports & Functionality)
+    -   **`node-fetch`:** Used in `src/llm.js` and `vector-memory/embeddingProvider.js` for making HTTP requests to DeepSeek and OpenAI APIs.
+    -   **`youtube-transcript-plus`:** Used in `src/youtube.js` for fetching YouTube video transcripts.
+    -   **`@lancedb/lancedb`:** Used in `src/lancedb.js` for interacting with the LanceDB vector database.
+    -   **`apache-arrow`:** Used in `src/lancedb.js` for schema definitions with LanceDB.
+    -   **`glob`:** Used in `src/github.js` for file pattern matching during content extraction.
+    -   **`express`:** Used in `src/agent.js` to set up the backend API server for the Memory Visualization UI.
+    -   **`body-parser`:** Used with Express in `src/agent.js` for parsing JSON request bodies.
+    -   **`@modelcontextprotocol/sdk`:** Used in `src/mcpClient.js` for interacting with MCP servers.
+    -   **For `src/memory-ui/` (React App):**
+        -   `react`, `react-dom`
+        -   `axios` (for API calls to the backend)
+        -   Likely other standard React development dependencies (e.g., `react-scripts` if Create React App was used).
 
 ## 4. External Services and APIs
--   **DeepSeek API:**
-    -   Used for LLM-based content analysis.
-    -   Requires `DEEPSEEK_API_KEY` environment variable.
-    -   Specific endpoint: `https://api.deepseek.com/chat/completions`.
-    -   Interacts by sending JSON payloads with prompts and parameters.
+-   **DeepSeek API (`https://api.deepseek.com/v1/chat/completions`):**
+    -   Primary LLM for content analysis and blueprint generation.
+    -   Requires `DEEPSEEK_API_KEY` environment variable or `config.json` entry.
+-   **OpenAI API (`https://api.openai.com/v1/embeddings`):**
+    -   Used by `vector-memory/embeddingProvider.js` to generate text embeddings (model `text-embedding-ada-002`).
+    -   Requires OpenAI API key, configurable via `config.json` (`apiKeys.openai`) or constructor parameter.
 -   **GitHub:**
-    -   Public repositories are cloned using the standard `git` command-line tool. This implies `git` must be installed on the system where the agent runs and be available in the system's PATH.
+    -   Public and private repositories are cloned using the `git` CLI.
+    -   `GITHUB_PAT` environment variable or `config.json` entry can be used for private repository access.
 -   **YouTube:**
-    -   (Existing functionality) Transcript data is fetched, possibly via a dedicated API, a third-party library, or a custom scraping solution.
+    -   Transcripts fetched via `youtube-transcript-plus`.
+-   **Model Context Protocol (MCP) Server (Optional):**
+    -   `src/mcpClient.js` connects to an MCP server (default `http://localhost:5000/sse`) to invoke external tools.
 
-## 5. Development Setup and Tooling
--   **Version Control:** Git. Project is hosted in a Git repository.
--   **`.nvmrc`:** Specifies the Node.js version for the project, intended for use with NVM (Node Version Manager).
--   **`.npmrc`:** May contain npm configuration specifics for the project.
--   **`package.json`:** Defines project metadata, dependencies, and scripts.
--   **`package-lock.json`:** Ensures reproducible builds by locking dependency versions.
--   **CLI Execution:** The agent is run directly using `node src/agent.js`.
+## 5. Data Storage
+-   **Configuration:** `config.json` for general settings.
+-   **Simple Key-Value Memory:** `memory-store.json` (managed by `src/memory.js`).
+-   **Hierarchical Memory:** `memory-hierarchy/` directory containing `session-memory.json`, `project-memory.json`, `global-memory.json` (managed by `src/hierarchicalMemory.js`).
+-   **Developer Profiles:** `developer-profiles/` directory containing `{developerId}.json` files (managed by `src/developerProfile.js`).
+-   **Semantic Vector Memory (LanceDB):** `vector-memory/lancedb-data/` directory (managed by `src/lancedb.js` and `vector-memory/lanceVectorMemory.js`).
+-   **Output:** `output/` directory for generated Markdown blueprints.
+-   **Temporary Clones:** `temp-clones/` directory for temporarily cloned GitHub repositories.
 
-## 6. Technical Constraints & Considerations
--   **`git` Dependency:** The GitHub analysis feature fundamentally relies on the `git` CLI being installed and accessible.
--   **API Key Security:** `DEEPSEEK_API_KEY` must be managed securely as an environment variable and not hardcoded.
--   **Network Connectivity:** Required for cloning GitHub repositories and making API calls to DeepSeek (and YouTube services).
--   **File System Permissions:** The agent needs permissions to create directories (e.g., `temp-clones`), write files (e.g., `prompts.md`), and delete directories within its working scope.
--   **Content Size Limits:** `MAX_FILE_SIZE` and `MAX_TOTAL_CONTENT_SIZE` in `github.js` are crucial for managing LLM token limits and API costs.
--   **Error Handling:** Robust error handling is needed for external process failures (`git clone`), network errors, API errors, and file system issues.
--   **Platform Compatibility:** While Node.js is cross-platform, reliance on the `git` CLI means its availability is a system-level concern. PowerShell is the user's default shell.
+## 6. Development Setup and Tooling
+-   **Version Control:** Git.
+-   **`.nvmrc`:** Specifies Node.js version.
+-   **`.npmrc`:** Potential npm configurations.
+-   **`package.json` / `package-lock.json`:** Project metadata and dependency management.
+-   **CLI Execution:** Agent run via `node src/agent.js`.
+-   **Memory UI Development:** The `src/memory-ui/` directory contains a standard React application setup.
 
-## 7. Code Style and Structure
--   **ES Modules:** Uses `import`/`export` syntax.
--   **Modularity:** Code is broken down into specific files based on functionality (`agent.js`, `github.js`, `llm.js`, etc.).
--   **Asynchronous Programming:** Heavy use of `async/await` for non-blocking operations.
+## 7. Technical Constraints & Considerations
+-   **`git` CLI Dependency:** Essential for GitHub repository analysis. Must be in PATH.
+-   **API Key Management:** Critical for DeepSeek, OpenAI, and potentially GitHub PAT. Managed via environment variables and `config.json`.
+-   **Network Connectivity:** Required for API calls, `git clone`, and YouTube transcript fetching.
+-   **File System Permissions:** Agent needs permissions for creating/writing/deleting in its operational directories (`output/`, `temp-clones/`, `memory-hierarchy/`, `developer-profiles/`, `vector-memory/lancedb-data/`).
+-   **Content & Token Limits:** Configurable limits (`maxTotalContentSize`, `maxSourceFilesToScan`, `maxSourceFileSize`, LLM `maxTokens`) are crucial for performance, cost management, and API constraints.
+-   **Error Handling:** Implemented across modules for external processes, API calls, and file operations.
+-   **Cross-Platform Compatibility:** Node.js is cross-platform, but `git` CLI availability is a system dependency.
+-   **Alternative Implementations:** Presence of `vector-memory/vectorMemory.js` (ChromaDB client) suggests flexibility or evolution in vector store choice.
+
+## 8. Code Style and Structure
+-   **ES Modules:** Consistent use of `import`/`export`.
+-   **Modularity:** Code is well-organized into feature-specific modules.
+-   **Asynchronous Programming:** `async/await` is used extensively.
+-   **Configuration Files:** `config.json` plays a central role in customizing agent behavior.

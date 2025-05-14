@@ -1,49 +1,57 @@
-# Active Context: Next Steps for ai-agent
+# Active Context: Post-Codebase Audit & Refined Roadmap
 
-## Immediate Next Steps (Implementation Roadmap)
+## Current Status: Codebase Audit Completed (May 13, 2025)
 
-1. **Vector Database (VectorDB) Integration**
-   - Research and select a suitable vector database (e.g., Chroma, Weaviate, Pinecone, or a local embedding store).
-   - Implement embedding generation for memory entries, code snippets, and documentation (using OpenAI, HuggingFace, or local models).
-   - Integrate semantic search for context retrieval, replacing or augmenting keyword-based memory lookups.
-   - Update agent flow to use semantic retrieval for LLM context assembly.
-
-2. **Memory Visualization and Editing UI**
-   - Design a simple CLI or web-based UI for browsing, searching, and editing memory and developer profiles.
-   - Implement features for tagging, deleting, and curating memory entries.
-   - Add visualization for memory layers (session, project, global) and vector search results.
-
-3. **Automated Contextual Prompt Engineering**
-   - Develop a prompt generator module that adapts LLM prompts based on developer profile, project type, and recent memory.
-   - Implement prompt templates and dynamic slot-filling for different agent tasks (e.g., code review, refactoring, documentation).
-   - Test and refine prompt adaptation for improved LLM output quality.
-
-4. **Agent Autonomy and Task Chaining**
-   - Build a task manager/planner module for breaking down high-level goals into subtasks.
-   - Enable the agent to execute subtasks in sequence, updating memory and progress after each.
-   - Integrate with the existing memory and profile system for context-aware planning.
-
-5. **Plugin/Tooling Ecosystem**
-   - Design a plugin architecture for registering and invoking external tools, APIs, and custom LLM endpoints.
-   - Implement a plugin manager for configuration, discovery, and execution of plugins.
-   - Document plugin development and integration process for users.
+- **Objective:** To gain an accurate understanding of the current AI Agent codebase, its features, architecture, and technologies, and to update all Memory Bank documents accordingly.
+- **Process:**
+    1. Identified key source files in `src/` and `vector-memory/`.
+    2. Read and analyzed the content of these core modules.
+    3. Determined the current system architecture, implemented features, and technologies in use.
+    4. Updated `projectbrief.md`, `productContext.md`, `systemPatterns.md`, and `techContext.md` to reflect these findings.
+- **Outcome:** The Memory Bank (project brief, product context, system patterns, tech context) now accurately represents the project's current state. This provides a solid foundation for planning future work.
 
 ---
 
-## Ongoing Documentation
+## Immediate Next Steps (Post-Audit Roadmap)
 
-- All new features, modules, and architectural changes will be documented in the Memory Bank (`activeContext.md`, `progress.md`, etc.) and the project README.
-- Each milestone will include a summary of what was built, how it works, and what is left to do.
+Based on the comprehensive codebase audit and the updated understanding of the project's capabilities and architecture, the following are the immediate priorities:
+
+1.  **Finalize Memory Bank Update & Documentation:**
+    *   Update `memory-bank/progress.md` to accurately reflect completed features and pending work based on the audit.
+    *   Update the Knowledge Graph if significant architectural or technological changes were identified that are not yet represented.
+    *   Provide a consolidated, updated project overview to the user.
+    *   Commit and push all updated Memory Bank documentation to the GitHub repository.
+
+2.  **Memory Visualization UI - Backend Integration:**
+    *   **Critical:** The current Express API backend for the Memory Visualization UI (`src/agent.js`) uses in-memory mock data. This needs to be refactored to connect to and serve data from the actual persistent memory systems:
+        *   `src/hierarchicalMemory.js` (for session, project, global layers).
+        *   `vector-memory/lanceVectorMemory.js` (for semantic search results, potentially listing entries).
+        *   `src/developerProfile.js` (for developer profiles).
+    *   Implement API endpoints in `src/agent.js` (or a dedicated API module) for CRUD operations (Create, Read, Update, Delete where applicable) on these persistent memory stores, to be consumed by the React UI (`src/memory-ui/src/App.js`).
+
+3.  **Refine Core Agent Workflows & Error Handling:**
+    *   Thoroughly test the end-to-end analysis workflows (YouTube, GitHub, local path) with the integrated memory systems.
+    *   Enhance error handling, logging, and user feedback across all modules for robustness.
+    *   Ensure consistent use of `developerId` and `projectId` (if applicable) when interacting with memory systems.
+
+4.  **Advanced Contextual Prompt Engineering:**
+    *   Begin designing and implementing more sophisticated prompt engineering techniques in `src/promptGenerator.js` and `src/llm.js`.
+    *   Leverage the full spectrum of available context:
+        *   Semantic search results from LanceDB.
+        *   Relevant entries from hierarchical memory (session, project, global).
+        *   Developer profile preferences and coding patterns.
+    *   Develop dynamic prompt templates that adapt to the specific task and available context.
+
+5.  **MCP Tool Integration - YouTube Transcripts:**
+    *   Revisit and test the commented-out MCP client integration in `src/youtube.js` for fetching transcripts. If a reliable MCP server providing this tool is available, enable and prioritize its use.
 
 ---
 
-## How to Proceed
-
-- Begin with VectorDB integration, as it will unlock semantic memory and improve all downstream features.
-- After each feature is implemented, update documentation and test the agent’s new capabilities.
-- Use the Memory Visualization UI to validate and curate memory as the agent evolves.
-- Continue to iterate on prompt engineering and autonomy, guided by user feedback and real-world usage.
+## Ongoing Documentation & Knowledge Management
+-   All new features, module changes, and architectural decisions will continue to be documented in the Memory Bank.
+-   The Knowledge Graph will be updated as the system evolves.
+-   The Memory Visualization UI, once its backend is integrated, will become a key tool for monitoring and curating the agent's knowledge.
 
 ---
 
-This roadmap ensures the agent will evolve toward a robust, adaptive, and extensible developer assistant, with clear documentation and incremental progress at every stage.
+This refined roadmap, informed by the detailed codebase audit, ensures that development efforts are focused on the most impactful areas, particularly making the existing Memory UI functional with real data and then leveraging the rich memory systems for better AI assistance.

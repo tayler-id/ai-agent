@@ -1,83 +1,144 @@
-# System Patterns: AI Agent for Content Analysis
+# System Patterns: AI Agent for Content Analysis & Personalized Assistance
 
 ## Core Architecture Overview
-The AI agent is a Node.js command-line application designed for modularity and extensibility. It processes URLs (YouTube or GitHub) through distinct workflows, interacts with an LLM for analysis, and generates output files.
+The AI agent is a Node.js application with a command-line interface (CLI) for its primary analysis functions and an auxiliary Express.js backend serving a React-based web UI for memory and profile visualization. It processes URLs (YouTube, GitHub) and local paths, interacts with LLMs for deep analysis, and leverages multiple, sophisticated memory systems.
 
 ```mermaid
 graph TD
-    A[User CLI Input URL] --> B{URL Type?};
-    B -- YouTube URL --> C[youtube.js: Fetch Transcript];
-    B -- GitHub URL --> D[github.js: Parse URL];
-    D --> E[github.js: Clone Repo];
-    E --> F[github.js: Get Repo Content];
-    C --> G[llm.js: Analyze Transcript];
-    F --> H[llm.js: Analyze Repo Content];
-    G --> I[promptGenerator.js: Generate YouTube Prompts];
-    H --> J[promptGenerator.js: Generate Repo Prompts];
-    I --> K[Save to prompts.md];
-    J --> K;
-    E --> L[github.js: Cleanup Repo];
+    subgraph UserInterfaces
+        CLI[User CLI: Input URL/Path]
+        WebUI[Web UI: Memory/Profile Management via React App]
+    end
+
+    subgraph BackendAPIs
+        ExpressAPI[agent.js: Express API for UI (/api/memory, /api/profiles)]
+    end
+
+    subgraph CoreAgentLogic
+        Agent[src/agent.js: Main Orchestrator]
+        Config[config.json & Env Vars]
+        DevProfile[src/developerProfile.js]
+        ContextMgr[src/contextWindowManager.js]
+    end
+
+    subgraph ContentProcessingModules
+        YouTubeMod[src/youtube.js: Fetch Transcript]
+        GitHubMod[src/github.js: Clone & Extract Content]
+        LocalPathMod[src/agent.js: Local Path Content Extraction]
+    end
+
+    subgraph LLMInteraction
+        LLMMod[src/llm.js: DeepSeek API Interaction]
+        PromptGen[src/promptGenerator.js: Blueprint Formatting]
+    end
+
+    subgraph MemorySystems
+        SimpleMem[src/memory.js: memory-store.json]
+        HierarchicalMem[src/hierarchicalMemory.js: session/project/global JSONs]
+        subgraph SemanticVectorMemory
+            LanceVecMem[vector-memory/lanceVectorMemory.js]
+            LanceDB[src/lancedb.js: LanceDB Interface]
+            EmbeddingMod[vector-memory/embeddingProvider.js: OpenAI Embeddings]
+        end
+    end
+    
+    subgraph ExternalServices
+        DeepSeek[DeepSeek LLM API]
+        OpenAI[OpenAI Embedding API]
+        GitHub[GitHub.com]
+        YouTube[YouTube Platform]
+        MCP[MCP Server (Optional)]
+    end
+
+    CLI --> Agent;
+    WebUI --> ExpressAPI;
+    Agent -- Loads --> Config;
+    Agent -- Uses --> DevProfile;
+    Agent -- Uses --> ContextMgr;
+    Agent -- RoutesTo --> YouTubeMod;
+    Agent -- RoutesTo --> GitHubMod;
+    Agent -- Handles --> LocalPathMod;
+    
+    YouTubeMod -- Transcript --> LLMMod;
+    GitHubMod -- RepoContent --> LLMMod;
+    LocalPathMod -- LocalContent --> LLMMod;
+    
+    ContextMgr -- ProvidesContextTo --> LLMMod;
+    DevProfile -- ProvidesProfileTo --> ContextMgr;
+    
+    LLMMod -- RawBlueprint --> PromptGen;
+    LLMMod -- InteractsWith --> DeepSeek;
+    
+    PromptGen -- FormattedOutput --> Agent;
+    Agent -- SavesOutput --> OutputDir[output/blueprints.md];
+
+    Agent -- InteractsWith --> SimpleMem;
+    Agent -- InteractsWith --> HierarchicalMem;
+    Agent -- InteractsWith --> LanceVecMem;
+    
+    LanceVecMem -- Uses --> LanceDB;
+    LanceVecMem -- Uses --> EmbeddingMod;
+    EmbeddingMod -- InteractsWith --> OpenAI;
+
+    GitHubMod -- ClonesFrom --> GitHub;
+    YouTubeMod -- FetchesFrom --> YouTube;
+    Agent -- OptionallyUses --> MCPClient[src/mcpClient.js];
+    MCPClient -- ConnectsTo --> MCP;
+
+    ExpressAPI -- (CurrentlyMocked)Manages --> SimpleMem; % Illustrative, needs update
+    ExpressAPI -- (CurrentlyMocked)Manages --> DevProfile; % Illustrative, needs update
 ```
 
 ## Key System Components and Patterns
 
-1.  **Main Agent Logic (`agent.js`):**
-    *   **Entry Point:** Initializes the agent and handles the main interaction loop.
-    *   **URL Dispatching:** Determines if an input URL is for YouTube or GitHub and routes to the appropriate processing module.
-    *   **Orchestration:** Calls functions from other modules in sequence to perform analysis (e.g., `cloneRepo`, `getRepoContentForAnalysis`, `analyzeRepoContent`, `generateRepoPrompts`).
-    *   **CLI Interaction:** Uses Node.js `readline` module for asynchronous user input.
-    *   **Error Handling:** Implements `try...catch...finally` blocks to manage errors during processing and ensure cleanup.
+1.  **Main Agent Logic (`src/agent.js`):**
+    *   **Entry Point & Orchestrator:** Initializes the agent, loads configuration, and handles the main CLI interaction loop.
+    *   **URL/Path Dispatching:** Determines input type (YouTube, GitHub, local path) and routes to appropriate processing modules.
+    *   **Express Backend for UI:** Initializes an Express.js server to provide API endpoints (`/api/memory`, `/api/profiles`) for the React-based Memory Visualization UI. *Currently, these API endpoints in `agent.js` use a simple in-memory mock rather than the persistent memory systems.*
+    *   **Configuration Management:** Loads settings from `config.json` and environment variables.
+    *   **Module Integration:** Coordinates calls to `youtube.js`, `github.js`, `llm.js`, `promptGenerator.js`, various memory modules, `developerProfile.js`, and `contextWindowManager.js`.
 
-2.  **GitHub Processing Module (`github.js`):**
-    *   **URL Parsing:** Extracts owner and repository name from GitHub URLs.
-    *   **Repository Cloning:**
-        *   Uses `child_process.exec` (wrapped in `util.promisify` for `execAsync`) to execute `git clone --depth 1` commands.
-        *   Creates temporary directories under `ai-agent/temp-clones/` for cloned repositories.
-        *   Ensures the base `temp-clones` directory exists.
-    *   **Content Extraction (`getRepoContentForAnalysis`):**
-        *   Recursively walks the cloned repository.
-        *   Prioritizes key files: `README.md` (and variants), `package.json`, `pom.xml`, `pyproject.toml`, `requirements.txt`, etc.
-        *   Selects source files from common directories (`src/`, `lib/`, `app/`, `main/`).
-        *   Concatenates file content up to defined limits (`MAX_FILE_SIZE`, `MAX_TOTAL_CONTENT_SIZE`) to prepare for LLM analysis.
-        *   Skips binary files, `.git` directory, `node_modules`, etc.
-    *   **Cleanup (`cleanupRepo`):**
-        *   Recursively removes the temporary directory created for the cloned repository using `fs.rm`.
+2.  **Content Processing Modules:**
+    *   **YouTube (`src/youtube.js`):** Fetches video transcripts using `youtube-transcript-plus`. Includes commented-out code for potential MCP tool integration for transcript fetching.
+    *   **GitHub (`src/github.js`):** Parses GitHub URLs, clones repositories (supports `GITHUB_PAT`), extracts content intelligently (READMEs, package files, source code, `memory-bank/*.md`, `.agentinclude` files), and manages temporary clone directories. Uses `glob` for file pattern matching.
+    *   **Local Path Processing (in `src/agent.js`):** Handles local directory inputs, applying similar content extraction logic as `github.js`, including `.agentinclude` support.
 
-3.  **YouTube Processing Module (`youtube.js`):**
-    *   (Existing functionality) Handles fetching YouTube video transcripts, likely via an external service or library.
+3.  **LLM Interaction & Prompting:**
+    *   **LLM Module (`src/llm.js`):** Manages interactions with the DeepSeek API. Constructs detailed prompts to request "Improvement and Re-implementation Blueprints" in JSON format. Handles API responses and errors, including parsing JSON from potentially messy LLM output. Supports follow-up questions.
+    *   **Prompt Generation (`src/promptGenerator.js`):** Takes the structured JSON blueprint from `llm.js` and formats it into detailed Markdown files and concise console prompts.
 
-4.  **LLM Interaction Module (`llm.js`):**
-    *   **API Communication:** Uses `node-fetch` (or similar) to make POST requests to the DeepSeek API endpoint.
-    *   **Prompt Specialization:**
-        *   `analyzeTranscript(transcript)`: Sends transcript content with a prompt tailored for YouTube video summarization.
-        *   `analyzeRepoContent(repoContentString)`: Sends concatenated repository content with a prompt tailored for GitHub repository analysis (purpose, features, tech stack, improvements, build strategy).
-    *   **API Key Management:** Retrieves `DEEPSEEK_API_KEY` from environment variables.
-    *   **Response Handling:** Parses JSON responses from the LLM.
-    *   **Parameterization:** Configures LLM parameters like `model`, `max_tokens` (increased for repository analysis), `temperature`.
+4.  **Memory Systems:**
+    *   **Simple Key-Value Memory (`src/memory.js`):** Basic file-based storage (`memory-store.json`) for associating summaries with URLs/paths.
+    *   **Hierarchical Memory (`src/hierarchicalMemory.js`):** Manages session, project, and global memory layers stored in separate JSON files within `memory-hierarchy/`.
+    *   **Semantic Vector Memory (LanceDB):**
+        *   `vector-memory/embeddingProvider.js`: Generates text embeddings using the OpenAI API (`text-embedding-ada-002`).
+        *   `src/lancedb.js`: Low-level interface for LanceDB operations (connect, ensure table, insert, query). Defines a schema with a 1536-dimension vector.
+        *   `vector-memory/lanceVectorMemory.js`: Higher-level class abstracting LanceDB usage; handles embedding text via `EmbeddingProvider` and performing semantic searches.
+    *   **Alternative Vector Memory (ChromaDB - `vector-memory/vectorMemory.js`):** An apparent older or alternative implementation for vector memory using ChromaDB, also leveraging the same `EmbeddingProvider`.
 
-5.  **Prompt Generation Module (`promptGenerator.js`):**
-    *   **Structured Output:** Takes the structured JSON analysis from `llm.js`.
-    *   `generateTranscriptPrompts(transcriptAnalysis)`: Creates coding prompts based on YouTube analysis.
-    *   `generateRepoPrompts(repoAnalysis)`: Creates coding prompts based on GitHub repository analysis.
-    -   Formats these prompts into a Markdown string.
+5.  **Personalization & Context Management:**
+    *   **Developer Profiles (`src/developerProfile.js`):** Stores and retrieves developer-specific coding patterns and preferences from JSON files in `developer-profiles/`.
+    *   **Context Window Manager (`src/contextWindowManager.js`):** Dynamically constructs the context for LLM prompts by prioritizing recent memory entries (from various systems) and developer profile information, compressing content as needed to fit token limits.
 
-6.  **File System Interaction:**
-    *   Uses Node.js `fs` module (e.g., `fs.promises` for async operations).
-    *   `mkdir` for creating directories (e.g., `temp-clones`).
-    *   `mkdtemp` for creating unique temporary directories for clones.
-    *   `writeFile` for saving generated prompts to `prompts.md`.
-    *   `readFile` for reading content from cloned repository files.
-    *   `rm` for deleting temporary directories.
+6.  **Memory Visualization UI:**
+    *   **Backend API (in `src/agent.js`):** Express.js server providing `/api/memory` and `/api/profiles` endpoints. *Currently serves mocked in-memory data for the UI.*
+    *   **Frontend (`src/memory-ui/src/App.js`):** React application that consumes the backend API to allow users to browse, search, filter, edit, and delete memory entries and developer profiles.
 
-## Design Patterns
--   **Modular Design:** Functionality is separated into distinct JavaScript modules, promoting maintainability and separation of concerns.
--   **Asynchronous Operations:** Extensive use of `async/await` for non-blocking I/O (file system, network requests, child processes).
--   **Promise-based Error Handling:** Standard `try...catch` for handling errors from asynchronous operations.
--   **Strategy Pattern (Implicit):** Different strategies are applied for YouTube vs. GitHub analysis, orchestrated by `agent.js`.
--   **Temporary Resource Management:** Pattern of creating temporary resources (cloned repos) and ensuring their cleanup in `finally` blocks or dedicated cleanup functions.
+7.  **MCP Client (`src/mcpClient.js`):**
+    *   Uses `@modelcontextprotocol/sdk` to connect to an MCP server (hardcoded to `http://localhost:5000/sse`) and invoke external tools.
+
+## Design Patterns & Principles
+-   **Modular Design:** Functionality is well-separated into distinct ES modules.
+-   **Asynchronous Operations:** Extensive use of `async/await` for non-blocking I/O.
+-   **Layered Abstraction for Memory:** Multiple memory systems with different characteristics (simple key-value, hierarchical, semantic vector) provide flexibility. The `LanceVectorMemory` class abstracts LanceDB details.
+-   **Configuration Driven:** Key parameters (API keys, model names, limits) are managed via `config.json` and environment variables.
+-   **Strategy Pattern (Implicit):** Different strategies for content sourcing (YouTube, GitHub, local) and memory management.
+-   **Facade (Implicit for Memory UI):** The Express API in `agent.js` acts as a facade for the UI, though it currently uses mock data.
+-   **Temporary Resource Management:** `github.js` manages temporary cloned repositories.
 
 ## Scalability and Performance Considerations
--   **`git clone --depth 1`:** Used to minimize clone time and data transfer for large repositories.
--   **Content Size Limits:** `MAX_FILE_SIZE` and `MAX_TOTAL_CONTENT_SIZE` in `github.js` prevent overloading the LLM and manage token limits.
--   **Asynchronous Operations:** Help keep the agent responsive while waiting for I/O.
--   The primary bottleneck for GitHub analysis is the `git clone` operation and then the LLM API response time. For YouTube, it's transcript fetching and LLM response time.
+-   **`git clone --depth 1`:** Minimizes clone time for GitHub repos.
+-   **Content Size Limits:** Configurable limits in `github.js` and `contextWindowManager.js` manage LLM token usage and API costs.
+-   **Asynchronous Operations:** Keep the CLI responsive.
+-   **Semantic Search:** LanceDB provides efficient vector similarity search.
+-   **Bottlenecks:** Likely to be `git clone`, LLM API response times, and potentially embedding generation for large amounts of text. The Memory UI's performance will depend on the efficiency of its (currently mock) backend API and the amount of data.
