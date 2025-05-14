@@ -10,27 +10,23 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 
-function loadOpenAIApiKeyFromConfig() {
-  try {
-    const configPath = path.resolve(process.cwd(), 'config.json');
-    const configData = fs.readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(configData);
-    return config.apiKeys && config.apiKeys.openai ? config.apiKeys.openai : null;
-  } catch (err) {
-    return null;
-  }
-}
-
 class EmbeddingProvider {
   /**
-   * @param {object} config - { openaiApiKey: string }
+   * @param {object} config - { openaiApiKey: string, model?: string }
    */
-  constructor(config) {
-    this.apiKey = config.openaiApiKey || loadOpenAIApiKeyFromConfig();
-    this.model = config.model || "text-embedding-ada-002";
-    if (!this.apiKey) {
-      throw new Error("OpenAI API key not found. Please set it in config.json under apiKeys.openai or provide it in the config object.");
+  constructor(config = {}) { // Added default empty object for config
+    // Prioritize API key passed in constructor config, then directly from process.env
+    if (config.openaiApiKey) {
+      this.apiKey = config.openaiApiKey;
+    } else {
+      this.apiKey = process.env.OPENAI_API_KEY;
     }
+
+    if (!this.apiKey) {
+      throw new Error("OpenAI API key not provided in constructor config and not found in OPENAI_API_KEY environment variable.");
+    }
+    
+    this.model = config.model || "text-embedding-ada-002";
   }
 
   /**
