@@ -8,14 +8,29 @@
 
 import fetch from 'node-fetch';
 import fs from 'fs';
+import path from 'path';
+
+function loadOpenAIApiKeyFromConfig() {
+  try {
+    const configPath = path.resolve(process.cwd(), 'config.json');
+    const configData = fs.readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(configData);
+    return config.apiKeys && config.apiKeys.openai ? config.apiKeys.openai : null;
+  } catch (err) {
+    return null;
+  }
+}
 
 class EmbeddingProvider {
   /**
    * @param {object} config - { openaiApiKey: string }
    */
   constructor(config) {
-    this.apiKey = config.openaiApiKey;
+    this.apiKey = config.openaiApiKey || loadOpenAIApiKeyFromConfig();
     this.model = config.model || "text-embedding-ada-002";
+    if (!this.apiKey) {
+      throw new Error("OpenAI API key not found. Please set it in config.json under apiKeys.openai or provide it in the config object.");
+    }
   }
 
   /**
