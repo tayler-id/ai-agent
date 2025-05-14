@@ -22,5 +22,11 @@
     "key": "https://github.com/hiyouga/LLaMA-Factory",
     "summary": "The original project, LLaMA Factory, appears to be a toolkit or framework for working with large language models (LLMs), possibly focusing on fine-tuning, deployment, or integration with platforms like Hugging Face, AWS, and others. The presence of badges for Colab, DSW, Spaces, and SageMaker suggests it facilitates model deployment across various environments.",
     "timestamp": "2025-05-13T23:15:41.548Z"
+  },
+  {
+    "type": "repo",
+    "key": "https://github.com/tayler-id/ai-agent/blob/main/output/local_crypto-trading-assistant_blueprint.md",
+    "summary": "To explore and propose novel features for enhancing coding Large Language Model (LLM) agents, focusing on improving their contextual awareness, memory management, and overall reliability in software development tasks.",
+    "timestamp": "2025-05-14T02:39:16.943Z"
   }
 ]

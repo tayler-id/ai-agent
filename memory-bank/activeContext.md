@@ -1,62 +1,61 @@
-# Active Context: Post-Codebase Audit & Refined Roadmap
+# Active Context: Advanced Chat UI Development
 
-## Current Status: Codebase Audit Completed (May 13, 2025)
+## Current Status: Advanced Chat UI Foundational Setup (May 13, 2025)
 
-- **Objective:** To gain an accurate understanding of the current AI Agent codebase, its features, architecture, and technologies, and to update all Memory Bank documents accordingly.
-- **Process:**
-    1. Identified key source files in `src/` and `vector-memory/`.
-    2. Read and analyzed the content of these core modules.
-    3. Determined the current system architecture, implemented features, and technologies in use.
-    4. Updated `projectbrief.md`, `productContext.md`, `systemPatterns.md`, and `techContext.md` to reflect these findings.
-- **Outcome:** The Memory Bank (project brief, product context, system patterns, tech context) now accurately represents the project's current state. This provides a solid foundation for planning future work.
+- **Objective:** Initiated development of a new, full-featured chat UI (`src/advanced-chat-ui/`) as per user request, building upon the existing agent's backend capabilities.
+- **Progress:**
+    1.  Successfully set up a Next.js application (`src/advanced-chat-ui/`) with TypeScript, Tailwind CSS, and the App Router.
+    2.  Installed and integrated the Vercel AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/openai`).
+    3.  Created a basic chat page (`src/app/chat/page.tsx`) using the `useChat` hook.
+    4.  Implemented a backend API route (`src/app/api/chat/route.ts`) that connects to the DeepSeek LLM (via OpenAI provider compatibility) and streams responses.
+    5.  Added initial URL detection (GitHub/YouTube) to the API route, modifying the system prompt for LLM acknowledgment. This functionality has been manually verified by the user.
+    6.  Troubleshot and resolved several issues:
+        *   NPM cache misconfiguration in the main project.
+        *   Module import errors for Vercel AI SDK components (`StreamingTextResponse`, `OpenAI` provider instantiation).
+        *   Module resolution issues for importing `src/github.js` into the nested Next.js app, currently worked around by copying `github.js` to `src/advanced-chat-ui/src/lib/` and adding `glob` as a local dependency to `advanced-chat-ui`.
+- **Outcome:** The foundational elements of the `advanced-chat-ui` are in place. LanceDB integration for semantic search (`task-95`) has been successfully tested with both Webpack (after configuration changes) and Turbopack.
+- **LanceDB Integration Status (`task-95` - May 14, 2025):**
+    -   **Webpack:** Resolved `Module parse failed` error using `serverExternalPackages: ['@lancedb/lancedb']` and `webpack.externals` in `next.config.ts`. LanceDB is functional.
+    -   **Turbopack:** Successfully tested. The `serverExternalPackages: ['@lancedb/lancedb']` setting in `next.config.ts` appears sufficient for Turbopack to handle the LanceDB native module. The previous `Error: could not resolve "@lancedb/lancedb-darwin-arm64"` did **not** reappear.
+    -   **Note:** Turbopack still warns `⚠ Webpack is configured while Turbopack is not, which may cause problems.` This needs monitoring but isn't currently blocking LanceDB.
+- **Task Status:** Implementation of `task-95` (Integrate LanceDB Semantic Search in Chat API) can proceed.
 
 ---
 
-## Immediate Next Steps (Post-Audit Roadmap)
+## Immediate Next Steps & Roadmap Focus (Updated - May 14, 2025)
 
-Based on the comprehensive codebase audit and the updated understanding of the project's capabilities and architecture, the following are the immediate priorities:
+With LanceDB showing compatibility with both Webpack and Turbopack (using `serverExternalPackages`), the focus can return to direct integration and feature development in the `advanced-chat-ui`.
 
-1.  **Investigate and Fix Local Path Analysis Bug (HIGHEST PRIORITY):**
-    *   **Issue:** User reported that local path analysis is not working.
-    *   **Objective:** Identify the root cause of the failure in local path analysis and implement a robust fix.
-    *   **Debugging Strategy (Initial):**
-        *   Add detailed logging within `src/agent.js` in the section handling local paths (where `isLocalPath` is true). Log the detected path, parameters passed to `getRepoContentForAnalysis`, and the returned content or error.
-        *   Add detailed logging within `src/github.js` inside `getRepoContentForAnalysis`, specifically for conditions where it's processing a local directory. Log file scanning, content extraction attempts, and errors.
-    *   **Resolution:** Implement necessary code changes in `src/agent.js` and/or `src/github.js`.
-    *   **Testing:** Test with various local path scenarios after the fix.
-    *   **Documentation:** Update Memory Bank if the fix alters functionality.
-    *   **Version Control:** Commit and push the fix.
+1.  **Advanced Chat UI - LanceDB Integration & Enhancements (RESUMED - HIGHEST PRIORITY):**
+    *   **Objective:** Fully integrate LanceDB semantic search into the `api/chat` route. Ensure search results are correctly processed and used to augment LLM context (RAG).
+    *   Refine the logging for LanceDB search results in `route.ts` to be more concise if needed.
+    *   Proceed with `task-95` and related UI feature development that depends on semantic search.
+    *   Monitor for any side effects from the Turbopack warning regarding Webpack configuration. If issues arise, consult Turbopack documentation for specific configurations (`https://nextjs.org/docs/app/api-reference/next-config-js/turbo`).
 
-2.  **Memory Visualization UI - Backend Integration (Following Local Path Fix):**
-    *   **Critical:** The current Express API backend for the Memory Visualization UI (`src/agent.js`) uses in-memory mock data. This needs to be refactored to connect to and serve data from the actual persistent memory systems:
-        *   `src/hierarchicalMemory.js` (for session, project, global layers).
-        *   `vector-memory/lanceVectorMemory.js` (for semantic search results, potentially listing entries).
-        *   `src/developerProfile.js` (for developer profiles).
-    *   Implement API endpoints in `src/agent.js` (or a dedicated API module) for CRUD operations (Create, Read, Update, Delete where applicable) on these persistent memory stores, to be consumed by the React UI (`src/memory-ui/src/App.js`).
+2.  **Research AI Agent Architectures & Native Dependency Solutions (Adjusted Priority):**
+    *   While the immediate blocker for LanceDB is resolved, this research (`task-98`, `task-99`, `task-100` of `req-23`) remains valuable for long-term best practices, handling other potential native dependencies, and understanding Turbopack-specific configurations beyond `serverExternalPackages`. It can proceed at a moderate priority or be deferred if UI development takes precedence.
 
-3.  **Refine Core Agent Workflows & Error Handling:**
-    *   Thoroughly test the end-to-end analysis workflows (YouTube, GitHub, local path) with the integrated memory systems.
-    *   Enhance error handling, logging, and user feedback across all modules for robustness.
-    *   Ensure consistent use of `developerId` and `projectId` (if applicable) when interacting with memory systems.
+3.  **Advanced Chat UI - Other Foundational Enhancements:**
+    *   Further integration of GitHub/YouTube analysis and other features can now proceed more confidently.
 
-4.  **Advanced Contextual Prompt Engineering:**
-    *   Begin designing and implementing more sophisticated prompt engineering techniques in `src/promptGenerator.js` and `src/llm.js`.
-    *   Leverage the full spectrum of available context:
-        *   Semantic search results from LanceDB.
-        *   Relevant entries from hierarchical memory (session, project, global).
-        *   Developer profile preferences and coding patterns.
-    *   Develop dynamic prompt templates that adapt to the specific task and available context.
+3.  **Shared Code Management Strategy:**
+    *   This remains relevant and may be informed by the research into architectural patterns.
 
-5.  **MCP Tool Integration - YouTube Transcripts:**
-    *   Revisit and test the commented-out MCP client integration in `src/youtube.js` for fetching transcripts. If a reliable MCP server providing this tool is available, enable and prioritize its use.
+4.  **Memory Visualization UI - Backend Integration (`src/memory-ui/`):**
+    *   This task remains important but is secondary to resolving the core architecture for semantic search.
+
+5.  **Local Path Analysis Bug (CLI Agent):**
+    *   This task is also secondary to the new research initiative.
+
+6.  **Refine Core Agent Workflows, Error Handling, Prompt Engineering (Ongoing):**
+    *   These are continuous improvement tasks.
 
 ---
 
 ## Ongoing Documentation & Knowledge Management
--   All new features, module changes, and architectural decisions will continue to be documented in the Memory Bank.
--   The Knowledge Graph will be updated as the system evolves.
--   The Memory Visualization UI, once its backend is integrated, will become a key tool for monitoring and curating the agent's knowledge.
+-   The current research findings and subsequent architectural decisions will be thoroughly documented in the Memory Bank.
+-   The Knowledge Graph will be updated to reflect any significant architectural changes.
 
 ---
 
-This refined roadmap, informed by the detailed codebase audit, ensures that development efforts are focused on the most impactful areas, particularly making the existing Memory UI functional with real data and then leveraging the rich memory systems for better AI assistance.
+The project's current trajectory is to proceed with full LanceDB integration into the `advanced-chat-ui` for semantic search capabilities, leveraging the successful tests with Webpack and Turbopack. Research into broader architectural patterns and Turbopack-specific configurations will continue as a background task to ensure long-term stability and best practices.

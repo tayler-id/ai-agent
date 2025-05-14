@@ -27,6 +27,14 @@
         -   `react`, `react-dom`
         -   `axios` (for API calls to the backend)
         -   Likely other standard React development dependencies (e.g., `react-scripts` if Create React App was used).
+    -   **For `src/advanced-chat-ui/` (Next.js Chat App):**
+        -   `next`: Framework.
+        -   `react`, `react-dom`: UI library.
+        -   `ai`: Vercel AI SDK core utilities.
+        -   `@ai-sdk/react`: Vercel AI SDK React hooks (e.g., `useChat`).
+        -   `@ai-sdk/openai`: Vercel AI SDK provider for OpenAI/DeepSeek compatible APIs.
+        -   `tailwindcss`: CSS framework.
+        -   `glob`: Used by the local copy of `github.js` within this app.
 
 ## 4. External Services and APIs
 -   **DeepSeek API (`https://api.deepseek.com/v1/chat/completions`):**
@@ -60,20 +68,28 @@
 ## 6. Development Setup and Tooling
 -   **Version Control:** Git.
 -   **`.nvmrc`:** Specifies Node.js version.
--   **`.npmrc`:** Potential npm configurations.
--   **`package.json` / `package-lock.json`:** Project metadata and dependency management.
--   **CLI Execution:** Agent run via `node src/agent.js`.
--   **Memory UI Development:** The `src/memory-ui/` directory contains a standard React application setup.
+    -   **`.npmrc`:** Potential npm configurations (project root `.npmrc` was modified to fix cache issues).
+    -   **`package.json` / `package-lock.json`:** Project metadata and dependency management (main project and also for `src/advanced-chat-ui` and `src/memory-ui`).
+    -   **CLI Execution:** Main agent run via `node src/agent.js`.
+    -   **Memory UI Development (`src/memory-ui/`):** Standard React application setup.
+    -   **Advanced Chat UI Development (`src/advanced-chat-ui/`):**
+        -   Next.js application using App Router, TypeScript, Tailwind CSS.
+        -   Has its own `package.json`, `tsconfig.json`, `next.config.ts`.
+        -   Run via `npm run dev` from within `src/advanced-chat-ui/`.
+        -   Requires its own `.env.local` file for API keys like `DEEPSEEK_API_KEY`.
 
 ## 7. Technical Constraints & Considerations
 -   **`git` CLI Dependency:** Essential for GitHub repository analysis. Must be in PATH.
--   **API Key Management:** Critical for DeepSeek, OpenAI, and potentially GitHub PAT. Managed via environment variables and `config.json`.
+-   **API Key Management:**
+    -   Main Agent: Critical for DeepSeek, OpenAI, GitHub PAT. Managed via `.env` at project root and `config.json`.
+    -   Advanced Chat UI: Requires its own `.env.local` in `src/advanced-chat-ui/` for `DEEPSEEK_API_KEY` (and potentially others).
 -   **Network Connectivity:** Required for API calls, `git clone`, and YouTube transcript fetching.
 -   **File System Permissions:** Agent needs permissions for creating/writing/deleting in its operational directories (`output/`, `temp-clones/`, `memory-hierarchy/`, `developer-profiles/`, `vector-memory/lancedb-data/`).
 -   **Content & Token Limits:** Configurable limits (`maxTotalContentSize`, `maxSourceFilesToScan`, `maxSourceFileSize`, LLM `maxTokens`) are crucial for performance, cost management, and API constraints.
 -   **Error Handling:** Implemented across modules for external processes, API calls, and file operations.
 -   **Cross-Platform Compatibility:** Node.js is cross-platform, but `git` CLI availability is a system dependency.
 -   **Alternative Implementations:** Presence of `vector-memory/vectorMemory.js` (ChromaDB client) suggests flexibility or evolution in vector store choice.
+-   **Shared Code with Nested Next.js App:** Importing modules from the parent project (`ai-agent/src/`) into the nested Next.js app (`src/advanced-chat-ui/`) proved problematic. Current workaround involves copying `github.js` into `src/advanced-chat-ui/src/lib/`. Long-term, a monorepo setup or local package structure would be more maintainable.
 
 ## 8. Code Style and Structure
 -   **ES Modules:** Consistent use of `import`/`export`.

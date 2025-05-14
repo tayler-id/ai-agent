@@ -15,6 +15,10 @@
     -   MUST be used for every new multi-step task to plan and track progress (`github.com/pashpashpash/mcp-taskmanager`).
     -   Strictly follow the `mark_task_done` -> `user_approval` -> `get_next_task` cycle for each task defined in the `request_planning` stage.
     -   **Exception for Chained Sub-Operations:** If a single *planned task* from the Task Manager inherently involves a tight sequence of multiple, low-risk, internal sub-operations that *Cline* executes (e.g., a sequence of `git add` then `git commit` performed via `execute_command` as part of a larger "commit feature X" task), Cline MAY perform these chained sub-operations and then mark the single parent task as done, seeking approval once for that parent task. This is to avoid excessive approval steps for trivial, tightly coupled internal actions. Cline MUST still clearly state all sub-operations performed when marking the parent task done. This exception does NOT apply if any sub-operation involves writing/replacing files or has a higher risk.
+    -   **Tasks Requiring Elevated Permissions:** If a planned task is likely to require elevated permissions (e.g., `sudo`), Cline SHOULD:
+        -   Inform the user of this possibility *before* attempting the command.
+        -   Ask if the user has the necessary permissions or if an alternative approach should be considered.
+        -   If permissions are lacking and no alternative is immediately viable, mark the task as "blocked" or "skipped due to permissions" and consult the user on how to proceed with the overall goal.
 - **Sequential Thinking:** SHOULD be used for complex problem-solving or when a detailed thought process needs to be recorded (`github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking`).
 - **Knowledge Graph (Memory MCP):** SHOULD be used to store and retrieve structured knowledge about the project, entities, and relationships (`github.com/modelcontextprotocol/servers/tree/main/src/memory`).
 - **Context7:** SHOULD be used for fetching up-to-date library documentation (`github.com/upstash/context7-mcp`). Resolve library ID first.
@@ -27,6 +31,23 @@
     2.  Attempt a direct, equivalent `execute_command` if available and safe (e.g., `git status`, `git add`, `git commit`).
     3.  If `execute_command` is not suitable or also fails, then use `ask_followup_question` to request the user to perform the action or provide information.
     4.  After the task, consider noting the unreliable MCP server in `activeContext.md` if it impacts workflow significantly.
+-   **Workflow-Critical MCP Failure (e.g., Task Manager):** If an MCP server essential for a core workflow (like Task Manager for multi-step tasks) becomes unavailable:
+    1.  Clearly inform the user of the MCP failure and its impact on the standard workflow.
+    2.  If possible, identify the remaining planned steps from the last known state of the MCP tool.
+    3.  Propose to continue manually with the subsequent logical steps, seeking user confirmation for this adapted approach.
+    4.  Document the MCP failure in `activeContext.md` as a significant event.
+
+### Interaction Protocols
+- **Strict Tool Adherence:** Even when outlining a multi-step plan or awaiting user input that isn't a direct answer to an `ask_followup_question`, if the turn involves providing information or requesting a distinct next action from the user, ensure a tool is used.
+    - If purely waiting for the user to perform an external action they initiate (e.g., an MCP approval, running a local script and providing output), use `ask_followup_question` to confirm completion or request the output of that action.
+    - Do not assume an action is complete without confirmation if it's user-driven.
+
+### Debugging Workflow / Terminal Output Handling
+- **Processing User-Provided Terminal Output:** If the user provides terminal output directly in their message, process it immediately.
+- **Responding to "Read Terminal" Prompts:** If the user asks "can you read the terminal?" or similar:
+    1. First, check `environment_details.Actively Running Terminals` for any *new* output since the last interaction, especially if an `execute_command` was recently run by me or if the user implies they've just performed an action.
+    2. If new, relevant output is found there, process it.
+    3. If no new relevant output is found in `environment_details`, or if clarity is needed, use `ask_followup_question` to explicitly request the user to provide the specific new terminal output they are referring to.
 
 ---
 
@@ -52,6 +73,19 @@
 -   **Error Handling:** Ensure robust error handling for external processes (`git clone`), API calls, and file system operations. Provide clear error messages.
 -   **Content Limits:** Be mindful of `MAX_FILE_SIZE` and `MAX_TOTAL_CONTENT_SIZE` in `github.js` when testing with large repositories to manage LLM token usage and API costs.
 -   **Output:** Generated analysis and prompts are saved to `prompts.md`.
+
+### User-Led Testing Protocol for UI/Interactive Features
+
+When a task requires user interaction with a UI or an external system that Cline cannot directly control (e.g., testing a chat interface, running a local script with prompts):
+
+1.  **Clear Test Plan:** Cline MUST provide a clear, step-by-step test plan if multiple test cases are needed. Each test case should specify:
+    *   The action the user needs to perform.
+    *   An example of the input/query if applicable.
+    *   The specific outputs/logs Cline needs from the user to verify the test (e.g., "server console logs for LVM search," "LLM's response in the UI").
+2.  **Iterative Test Execution:** Cline SHOULD request the user to perform one test case (or a small group of related test cases) at a time.
+3.  **Explicit Request for Results:** After the user performs the action, Cline MUST explicitly ask for all necessary outputs/logs for that specific test case using `ask_followup_question`.
+4.  **Confirmation of Understanding:** If the user's response is ambiguous or doesn't provide all requested information (e.g., "tell me," "you run it"), Cline MUST clarify what actions are needed from the user and what specific information is required, referencing the test plan. Avoid proceeding if the necessary test data is not yet provided.
+5.  **Analysis and Iteration:** Cline will analyze the provided results. If a test fails or shows unexpected behavior, Cline will diagnose and propose fixes before re-requesting a test.
 
 ## Cline's Interaction
 -   Cline can execute the command to *start* the agent (e.g., `node src/agent.js`).

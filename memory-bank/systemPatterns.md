@@ -7,11 +7,13 @@ The AI agent is a Node.js application with a command-line interface (CLI) for it
 graph TD
     subgraph UserInterfaces
         CLI[User CLI: Input URL/Path]
-        WebUI[Web UI: Memory/Profile Management via React App]
+        WebUI[Web UI: Memory/Profile Management via React App (src/memory-ui)]
+        AdvancedChatUI[Advanced Chat UI (src/advanced-chat-ui, Next.js)]
     end
 
     subgraph BackendAPIs
-        ExpressAPI[agent.js: Express API for UI (/api/memory, /api/profiles)]
+        ExpressAPI[agent.js: Express API for Memory Vis. UI (Mocked)]
+        NextJS_Chat_API[advanced-chat-ui: Next.js API Route (/api/chat)]
     end
 
     subgraph CoreAgentLogic
@@ -53,6 +55,8 @@ graph TD
 
     CLI --> Agent;
     WebUI --> ExpressAPI;
+    AdvancedChatUI --> NextJS_Chat_API;
+    
     Agent -- Loads --> Config;
     Agent -- Uses --> DevProfile;
     Agent -- Uses --> ContextMgr;
@@ -80,15 +84,20 @@ graph TD
     
     LanceVecMem -- Uses --> LanceDB;
     LanceVecMem -- Uses --> EmbeddingMod;
-    EmbeddingMod -- InteractsWith --> OpenAI;
+    EmbeddingMod -- InteractsWith --> OpenAI_Embed;
 
     GitHubMod -- ClonesFrom --> GitHub;
     YouTubeMod -- FetchesFrom --> YouTube;
     Agent -- OptionallyUses --> MCPClient[src/mcpClient.js];
     MCPClient -- ConnectsTo --> MCP;
 
-    ExpressAPI -- (CurrentlyMocked)Manages --> SimpleMem; % Illustrative, needs update
-    ExpressAPI -- (CurrentlyMocked)Manages --> DevProfile; % Illustrative, needs update
+    ExpressAPI -- (CurrentlyMocked)Manages --> SimpleMem;
+    ExpressAPI -- (CurrentlyMocked)Manages --> DevProfile;
+
+    NextJS_Chat_API -- Uses --> LLMMod; % For LLM calls
+    NextJS_Chat_API -- Uses --> GitHubMod_LocalCopy[advanced-chat-ui/src/lib/github.js]; % Local copy
+    GitHubMod_LocalCopy -- Uses --> GlobLib[glob in advanced-chat-ui];
+    NextJS_Chat_API -- InteractsWith --> DeepSeek; % Directly or via LLMMod
 ```
 
 ## Key System Components and Patterns
@@ -133,6 +142,22 @@ graph TD
 
 7.  **MCP Client (`src/mcpClient.js`):**
     *   Uses `@modelcontextprotocol/sdk` to connect to an MCP server (hardcoded to `http://localhost:5000/sse`) and invoke external tools.
+
+7.  **Advanced Chat UI (`src/advanced-chat-ui/`):**
+    *   **Frontend (Next.js/React):** Located in `src/advanced-chat-ui/src/app/`.
+        *   Uses Next.js App Router.
+        *   Chat interface (`chat/page.tsx`) built with React and the Vercel AI SDK (`@ai-sdk/react`, specifically the `useChat` hook).
+        *   Styled with Tailwind CSS.
+    *   **Backend (Next.js API Route):** Located at `src/advanced-chat-ui/src/app/api/chat/route.ts`.
+        *   Handles POST requests from the `useChat` hook.
+        *   Connects to LLMs (currently DeepSeek via `@ai-sdk/openai` provider) using API keys from its own `.env.local` (e.g., `DEEPSEEK_API_KEY`).
+        *   Uses `streamText` from the `ai` package to stream responses.
+        *   Includes basic URL detection (GitHub, YouTube).
+        *   Uses a local copy of `github.js` (from `src/advanced-chat-ui/src/lib/github.js`) for functions like `parseGitHubUrl`. This copy requires `glob` to be a dependency of `advanced-chat-ui`.
+    *   **Configuration:**
+        *   `next.config.ts`: Configured with `experimental: { externalDir: true }` (though current solution uses local copy of `github.js`).
+        *   `tsconfig.json`: Includes path alias `@/*` for its own `src` and `@agentLib/*` (currently unused due to local copy strategy for `github.js`).
+    *   **Current Functionality:** Basic chat with LLM, acknowledgment of detected GitHub/YouTube URLs by modifying the system prompt to the LLM. Full analysis capabilities for URLs are not yet integrated.
 
 ## Design Patterns & Principles
 -   **Modular Design:** Functionality is well-separated into distinct ES modules.
